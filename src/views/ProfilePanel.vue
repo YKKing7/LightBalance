@@ -20,6 +20,15 @@ const emit = defineEmits<{
       heightCm: number;
       currentWeightKg: number;
       bodyFatRate: number | null;
+      targetWeightKg: number;
+      targetBodyFatRate: number | null;
+      weeklyWorkoutTarget: number;
+      dailyCalorieTarget: number;
+      sleepTargetHours: number;
+      workStyle: string;
+      stressLevel: string;
+      smokingStatus: string;
+      drinkingFrequency: string;
       habitSleep: string;
       habitDiet: string;
       habitExercise: string;
@@ -49,6 +58,15 @@ const form = reactive({
   heightCm: 170,
   currentWeightKg: 60,
   bodyFatRate: "" as string | number,
+  targetWeightKg: 55,
+  targetBodyFatRate: "" as string | number,
+  weeklyWorkoutTarget: 4,
+  dailyCalorieTarget: 1600,
+  sleepTargetHours: 7.5,
+  workStyle: "久坐办公",
+  stressLevel: "中",
+  smokingStatus: "从不",
+  drinkingFrequency: "几乎不",
   habitSleep: "",
   habitDiet: "",
   habitExercise: ""
@@ -74,6 +92,15 @@ watch(
     form.heightCm = profile.heightCm;
     form.currentWeightKg = profile.currentWeightKg;
     form.bodyFatRate = profile.bodyFatRate ?? "";
+    form.targetWeightKg = profile.targetWeightKg;
+    form.targetBodyFatRate = profile.targetBodyFatRate ?? "";
+    form.weeklyWorkoutTarget = profile.weeklyWorkoutTarget;
+    form.dailyCalorieTarget = profile.dailyCalorieTarget;
+    form.sleepTargetHours = profile.sleepTargetHours;
+    form.workStyle = profile.workStyle || "久坐办公";
+    form.stressLevel = profile.stressLevel || "中";
+    form.smokingStatus = profile.smokingStatus || "从不";
+    form.drinkingFrequency = profile.drinkingFrequency || "几乎不";
     form.habitSleep = profile.habitSleep;
     form.habitDiet = profile.habitDiet;
     form.habitExercise = profile.habitExercise;
@@ -85,9 +112,19 @@ watch(
 const title = computed(() => (props.mode === "profile" ? "个人信息" : "偏好设置"));
 const description = computed(() =>
   props.mode === "profile"
-    ? "这里会直接读取并保存 MySQL 中的用户资料与身体信息。"
-    : "查看桌面端当前账号的状态，并从这里退出登录。"
+    ? "编辑个人资料、身体数据、健康目标与生活方式。"
+    : "管理账号安全设置，查看账号状态。"
 );
+
+const bmiDisplay = computed(() => {
+  if (!props.profile?.bmi) return "--";
+  return Number(props.profile.bmi).toFixed(1);
+});
+
+const bmrDisplay = computed(() => {
+  if (!props.profile?.bmr) return "--";
+  return `${Math.round(Number(props.profile.bmr))} kcal`;
+});
 
 function handleSave() {
   emit("saveProfile", {
@@ -97,6 +134,15 @@ function handleSave() {
     heightCm: Number(form.heightCm),
     currentWeightKg: Number(form.currentWeightKg),
     bodyFatRate: form.bodyFatRate === "" ? null : Number(form.bodyFatRate),
+    targetWeightKg: Number(form.targetWeightKg),
+    targetBodyFatRate: form.targetBodyFatRate === "" ? null : Number(form.targetBodyFatRate),
+    weeklyWorkoutTarget: Number(form.weeklyWorkoutTarget),
+    dailyCalorieTarget: Number(form.dailyCalorieTarget),
+    sleepTargetHours: Number(form.sleepTargetHours),
+    workStyle: form.workStyle,
+    stressLevel: form.stressLevel,
+    smokingStatus: form.smokingStatus,
+    drinkingFrequency: form.drinkingFrequency,
     habitSleep: form.habitSleep.trim(),
     habitDiet: form.habitDiet.trim(),
     habitExercise: form.habitExercise.trim()
@@ -138,136 +184,261 @@ function handleSavePassword() {
         <strong>{{ profile?.nickname ?? nickname }}</strong>
         <span>@{{ username }}</span>
         <small>{{ profile?.email ?? "未绑定邮箱" }}</small>
+
+        <div v-if="mode === 'profile' && profile" class="identity-card__stats">
+          <div class="stat-item">
+            <span>BMI</span>
+            <strong>{{ bmiDisplay }}</strong>
+          </div>
+          <div class="stat-item">
+            <span>BMR</span>
+            <strong>{{ bmrDisplay }}</strong>
+          </div>
+        </div>
       </article>
 
-      <article v-if="mode === 'profile'" class="profile-card">
-        <p class="profile-card__eyebrow">资料编辑</p>
+      <div class="profile-content">
+        <template v-if="mode === 'profile'">
+          <div v-if="loading" class="profile-loading">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
 
-        <div v-if="loading" class="profile-loading">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
+          <template v-else>
+            <!-- 基本信息 -->
+            <article class="section-card">
+              <p class="section-card__title">基本信息</p>
+
+              <div class="profile-fields profile-fields--two">
+                <label class="profile-field">
+                  <span>昵称</span>
+                  <input v-model.trim="form.nickname" type="text" placeholder="请输入昵称" />
+                </label>
+
+                <label class="profile-field profile-field--readonly">
+                  <span>邮箱</span>
+                  <input :value="profile?.email ?? ''" type="text" readonly />
+                </label>
+              </div>
+
+              <div class="profile-fields profile-fields--four">
+                <label class="profile-field">
+                  <span>年龄</span>
+                  <input v-model="form.age" type="number" min="0" />
+                </label>
+
+                <label class="profile-field">
+                  <span>性别</span>
+                  <select v-model="form.gender">
+                    <option value="未设置">未设置</option>
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                  </select>
+                </label>
+
+                <label class="profile-field">
+                  <span>身高(cm)</span>
+                  <input v-model="form.heightCm" type="number" min="0" step="0.1" />
+                </label>
+
+                <label class="profile-field">
+                  <span>体重(kg)</span>
+                  <input v-model="form.currentWeightKg" type="number" min="0" step="0.1" />
+                </label>
+              </div>
+
+              <div class="profile-fields profile-fields--three">
+                <label class="profile-field">
+                  <span>体脂率(%)</span>
+                  <input v-model="form.bodyFatRate" type="number" min="0" max="100" step="0.1" placeholder="可选" />
+                </label>
+
+                <label class="profile-field profile-field--readonly">
+                  <span>BMI</span>
+                  <input :value="bmiDisplay" type="text" readonly />
+                </label>
+
+                <label class="profile-field profile-field--readonly">
+                  <span>BMR</span>
+                  <input :value="bmrDisplay" type="text" readonly />
+                </label>
+              </div>
+            </article>
+
+            <!-- 目标设定 -->
+            <article class="section-card">
+              <p class="section-card__title">目标设定</p>
+
+              <div class="profile-fields profile-fields--three">
+                <label class="profile-field">
+                  <span>目标体重(kg)</span>
+                  <input v-model="form.targetWeightKg" type="number" min="0" step="0.1" />
+                </label>
+
+                <label class="profile-field">
+                  <span>目标体脂率(%)</span>
+                  <input v-model="form.targetBodyFatRate" type="number" min="0" max="100" step="0.1" placeholder="可选" />
+                </label>
+
+                <label class="profile-field">
+                  <span>每周训练目标(次)</span>
+                  <input v-model="form.weeklyWorkoutTarget" type="number" min="0" max="14" />
+                </label>
+              </div>
+
+              <div class="profile-fields profile-fields--two">
+                <label class="profile-field">
+                  <span>每日热量目标(kcal)</span>
+                  <input v-model="form.dailyCalorieTarget" type="number" min="800" max="5000" step="50" />
+                </label>
+
+                <label class="profile-field">
+                  <span>睡眠目标(小时)</span>
+                  <input v-model="form.sleepTargetHours" type="number" min="4" max="12" step="0.5" />
+                </label>
+              </div>
+            </article>
+
+            <!-- 生活方式 -->
+            <article class="section-card">
+              <p class="section-card__title">生活方式</p>
+
+              <div class="profile-fields profile-fields--four">
+                <label class="profile-field">
+                  <span>工作方式</span>
+                  <select v-model="form.workStyle">
+                    <option value="久坐办公">久坐办公</option>
+                    <option value="轻体力">轻体力</option>
+                    <option value="重体力">重体力</option>
+                    <option value="自由职业">自由职业</option>
+                  </select>
+                </label>
+
+                <label class="profile-field">
+                  <span>压力水平</span>
+                  <select v-model="form.stressLevel">
+                    <option value="低">低</option>
+                    <option value="中">中</option>
+                    <option value="高">高</option>
+                  </select>
+                </label>
+
+                <label class="profile-field">
+                  <span>吸烟状态</span>
+                  <select v-model="form.smokingStatus">
+                    <option value="从不">从不</option>
+                    <option value="偶尔">偶尔</option>
+                    <option value="经常">经常</option>
+                  </select>
+                </label>
+
+                <label class="profile-field">
+                  <span>饮酒频率</span>
+                  <select v-model="form.drinkingFrequency">
+                    <option value="几乎不">几乎不</option>
+                    <option value="偶尔">偶尔</option>
+                    <option value="经常">经常</option>
+                  </select>
+                </label>
+              </div>
+            </article>
+
+            <!-- 习惯记录 -->
+            <article class="section-card">
+              <p class="section-card__title">习惯记录</p>
+
+              <label class="profile-field">
+                <span>睡眠习惯</span>
+                <textarea v-model.trim="form.habitSleep" rows="2" placeholder="例如：23:30-07:00"></textarea>
+              </label>
+
+              <label class="profile-field">
+                <span>饮食习惯</span>
+                <textarea v-model.trim="form.habitDiet" rows="2" placeholder="例如：三餐规律，偶尔夜宵"></textarea>
+              </label>
+
+              <label class="profile-field">
+                <span>运动习惯</span>
+                <textarea v-model.trim="form.habitExercise" rows="2" placeholder="例如：每周力量训练 3 次"></textarea>
+              </label>
+            </article>
+
+            <button class="profile-save" type="button" :disabled="saving" @click="handleSave">
+              {{ saving ? "保存中..." : "保存全部资料" }}
+            </button>
+          </template>
+        </template>
 
         <template v-else>
-          <div class="profile-fields profile-fields--two">
-            <label class="profile-field">
-              <span>昵称</span>
-              <input v-model.trim="form.nickname" type="text" placeholder="请输入昵称" />
-            </label>
+          <!-- 账号信息 -->
+          <article class="section-card">
+            <p class="section-card__title">账号信息</p>
+            <div class="account-info">
+              <div class="info-row">
+                <span>用户 ID</span>
+                <strong>{{ profile?.userId ?? "--" }}</strong>
+              </div>
+              <div class="info-row">
+                <span>用户名</span>
+                <strong>@{{ username }}</strong>
+              </div>
+              <div class="info-row">
+                <span>昵称</span>
+                <strong>{{ profile?.nickname ?? nickname }}</strong>
+              </div>
+              <div class="info-row">
+                <span>邮箱</span>
+                <strong>{{ profile?.email ?? "未绑定" }}</strong>
+              </div>
+            </div>
+          </article>
 
-            <label class="profile-field profile-field--readonly">
-              <span>邮箱</span>
-              <input :value="profile?.email ?? ''" type="text" readonly />
-            </label>
-          </div>
+          <!-- 邮箱修改 -->
+          <article class="section-card">
+            <p class="section-card__title">修改邮箱</p>
+            <div class="profile-fields profile-fields--two">
+              <label class="profile-field">
+                <span>新邮箱地址</span>
+                <input v-model.trim="settingsForm.email" type="email" placeholder="请输入新邮箱" />
+              </label>
+              <div class="field-action">
+                <button class="profile-save" type="button" :disabled="saving" @click="handleSaveEmail">
+                  {{ saving ? "保存中..." : "修改邮箱" }}
+                </button>
+              </div>
+            </div>
+          </article>
 
-          <div class="profile-fields profile-fields--four">
-            <label class="profile-field">
-              <span>年龄</span>
-              <input v-model="form.age" type="number" min="0" />
-            </label>
+          <!-- 密码修改 -->
+          <article class="section-card">
+            <p class="section-card__title">修改密码</p>
 
-            <label class="profile-field">
-              <span>性别</span>
-              <select v-model="form.gender">
-                <option value="未设置">未设置</option>
-                <option value="男">男</option>
-                <option value="女">女</option>
-              </select>
-            </label>
+            <div class="profile-fields profile-fields--three">
+              <label class="profile-field">
+                <span>当前密码</span>
+                <input v-model="settingsForm.currentPassword" type="password" placeholder="输入当前密码" />
+              </label>
 
-            <label class="profile-field">
-              <span>身高(cm)</span>
-              <input v-model="form.heightCm" type="number" min="0" step="0.1" />
-            </label>
+              <label class="profile-field">
+                <span>新密码</span>
+                <input v-model="settingsForm.newPassword" type="password" placeholder="输入新密码" />
+              </label>
 
-            <label class="profile-field">
-              <span>体重(kg)</span>
-              <input v-model="form.currentWeightKg" type="number" min="0" step="0.1" />
-            </label>
-          </div>
+              <label class="profile-field">
+                <span>确认新密码</span>
+                <input v-model="settingsForm.confirmPassword" type="password" placeholder="再次输入新密码" />
+              </label>
+            </div>
 
-          <div class="profile-fields profile-fields--three">
-            <label class="profile-field">
-              <span>体脂率(%)</span>
-              <input v-model="form.bodyFatRate" type="number" min="0" max="100" step="0.1" placeholder="可选" />
-            </label>
+            <button class="profile-save" type="button" :disabled="saving" @click="handleSavePassword">
+              {{ saving ? "保存中..." : "修改密码" }}
+            </button>
+          </article>
 
-            <label class="profile-field profile-field--readonly">
-              <span>BMI</span>
-              <input :value="profile?.bmi ?? ''" type="text" readonly />
-            </label>
-
-            <label class="profile-field profile-field--readonly">
-              <span>BMR</span>
-              <input :value="profile?.bmr ?? ''" type="text" readonly />
-            </label>
-          </div>
-
-          <label class="profile-field">
-            <span>睡眠习惯</span>
-            <textarea v-model.trim="form.habitSleep" rows="2" placeholder="例如：23:30-07:00"></textarea>
-          </label>
-
-          <label class="profile-field">
-            <span>饮食习惯</span>
-            <textarea v-model.trim="form.habitDiet" rows="2" placeholder="例如：三餐规律，偶尔夜宵"></textarea>
-          </label>
-
-          <label class="profile-field">
-            <span>运动习惯</span>
-            <textarea v-model.trim="form.habitExercise" rows="2" placeholder="例如：每周力量训练 3 次"></textarea>
-          </label>
-
-          <button class="profile-save" type="button" :disabled="saving" @click="handleSave">
-            {{ saving ? "保存中..." : "保存资料" }}
-          </button>
+          <button class="profile-logout" type="button" @click="$emit('logout')">退出登录</button>
         </template>
-      </article>
-
-      <article v-else class="profile-card">
-        <p class="profile-card__eyebrow">界面设置</p>
-        <ul class="settings-list">
-          <li>主界面支持固定顶部栏与左侧导航，内容区独立滚动。</li>
-          <li>登录成功后主窗口会默认最大化显示。</li>
-          <li>账号资料、昵称与健康档案均直接保存到 MySQL。</li>
-        </ul>
-
-        <div class="settings-block">
-          <label class="profile-field">
-            <span>邮箱</span>
-            <input v-model.trim="settingsForm.email" type="email" placeholder="请输入新邮箱" />
-          </label>
-
-          <button class="profile-save" type="button" :disabled="saving" @click="handleSaveEmail">
-            {{ saving ? "保存中..." : "修改邮箱" }}
-          </button>
-        </div>
-
-        <div class="settings-block">
-          <label class="profile-field">
-            <span>当前密码</span>
-            <input v-model="settingsForm.currentPassword" type="password" placeholder="修改密码时填写" />
-          </label>
-
-          <label class="profile-field">
-            <span>新密码</span>
-            <input v-model="settingsForm.newPassword" type="password" placeholder="留空则不修改密码" />
-          </label>
-
-          <label class="profile-field">
-            <span>确认新密码</span>
-            <input v-model="settingsForm.confirmPassword" type="password" placeholder="再次输入新密码" />
-          </label>
-
-          <button class="profile-save" type="button" :disabled="saving" @click="handleSavePassword">
-            {{ saving ? "保存中..." : "修改密码" }}
-          </button>
-        </div>
-
-        <button class="profile-logout" type="button" @click="$emit('logout')">退出登录</button>
-      </article>
+      </div>
     </div>
   </section>
 </template>
@@ -290,8 +461,7 @@ function handleSavePassword() {
   box-shadow: 0 16px 40px rgba(30, 44, 37, 0.08);
 }
 
-.profile-panel__eyebrow,
-.profile-card__eyebrow {
+.profile-panel__eyebrow {
   margin: 0 0 8px;
   font-size: 0.78rem;
   letter-spacing: 0.16em;
@@ -327,7 +497,7 @@ function handleSavePassword() {
 }
 
 .identity-card,
-.profile-card {
+.section-card {
   padding: 22px;
   border-radius: 24px;
   background: rgba(255, 252, 246, 0.92);
@@ -339,6 +509,7 @@ function handleSavePassword() {
   display: grid;
   gap: 10px;
   align-content: start;
+  height: fit-content;
 }
 
 .identity-card__avatar {
@@ -363,18 +534,46 @@ function handleSavePassword() {
   color: var(--color-text-soft);
 }
 
-.profile-card {
+.identity-card__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(57, 87, 63, 0.1);
+}
+
+.stat-item {
+  display: grid;
+  gap: 4px;
+}
+
+.stat-item span {
+  font-size: 0.82rem;
+  color: var(--color-text-soft);
+}
+
+.stat-item strong {
+  font-size: 1.2rem;
+  color: var(--color-text);
+}
+
+.profile-content {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.section-card {
   display: grid;
   gap: 16px;
 }
 
-.settings-block {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(246, 243, 235, 0.68);
-  border: 1px solid rgba(57, 87, 63, 0.08);
+.section-card__title {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .profile-fields {
@@ -422,6 +621,11 @@ function handleSavePassword() {
   background: rgba(246, 243, 235, 0.9);
 }
 
+.field-action {
+  display: flex;
+  align-items: end;
+}
+
 .profile-save,
 .profile-logout {
   justify-self: start;
@@ -447,14 +651,27 @@ function handleSavePassword() {
   background: linear-gradient(135deg, #6d3d2f, #a14d3b);
 }
 
-.settings-list {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--color-text-soft);
+.account-info {
+  display: grid;
+  gap: 12px;
 }
 
-.settings-list li + li {
-  margin-top: 10px;
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(246, 243, 235, 0.5);
+}
+
+.info-row span {
+  color: var(--color-text-soft);
+  font-size: 0.92rem;
+}
+
+.info-row strong {
+  color: var(--color-text);
 }
 
 .profile-loading {
@@ -482,7 +699,10 @@ function handleSavePassword() {
 }
 
 @media (max-width: 1180px) {
-  .profile-grid,
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+
   .profile-fields--two,
   .profile-fields--three,
   .profile-fields--four {

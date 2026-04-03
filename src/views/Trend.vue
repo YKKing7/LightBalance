@@ -9,6 +9,7 @@ const props = defineProps<{
 const activeMetric = ref<TrendMetricKey>("weightKg");
 const activeStatus = ref<"全部" | string>("全部");
 const selectedDate = ref<string | null>(props.summary.series.at(-1)?.date ?? null);
+const hoveredIndex = ref<number | null>(null);
 const latestAvailableDate = computed(() => props.summary.series.at(-1)?.date ?? props.summary.records.at(-1)?.date ?? null);
 
 watch(
@@ -166,7 +167,7 @@ const progressLabel = computed(() => {
 
 const progressNarrative = computed(() => {
   if (props.summary.latestWeight <= props.summary.targetWeight) {
-    return "体重已经贴近目标，后续重点可以从“继续掉秤”转向“维持状态和塑形”。";
+    return '体重已经贴近目标，后续重点可以从"继续掉秤"转向"维持状态和塑形"。';
   }
 
   if (props.summary.averageSleepHours < 7) {
@@ -174,13 +175,6 @@ const progressNarrative = computed(() => {
   }
 
   return `距离目标体重还有 ${progressGap.value} kg，当前训练、步数和围度变化是同向的，说明执行结构没有跑偏。`;
-});
-
-const orbitMetrics = computed(() => {
-  return props.summary.metricCards.map((item, index) => ({
-    ...item,
-    angle: `${index * 90}deg`
-  }));
 });
 
 const recoveryMax = computed(() => Math.max(...props.summary.recoveryBreakdown.map((item) => item.value), 1));
@@ -198,6 +192,34 @@ const dailyPulse = computed(() => {
   const trainingScore = Math.min(record.trainingMinutes / 40, 1);
 
   return Math.round(((sleepScore + stepsScore + trainingScore) / 3) * 100);
+});
+
+// SVG line chart constants
+const SVG_PADDING_X = 40;
+const SVG_PADDING_TOP = 24;
+const SVG_PADDING_BOTTOM = 40;
+const SVG_HEIGHT = 280;
+const SVG_WIDTH = 760;
+
+const svgPoints = computed(() => {
+  const series = props.summary.series;
+  if (series.length === 0) return { polyline: "", dots: [] };
+
+  const range = metricRange.value;
+  const xStep = series.length > 1 ? (SVG_WIDTH - SVG_PADDING_X * 2) / (series.length - 1) : 0;
+  const chartHeight = SVG_HEIGHT - SVG_PADDING_TOP - SVG_PADDING_BOTTOM;
+
+  const dots = series.map((point, i) => {
+    const value = Number(point[activeMetric.value]);
+    const x = SVG_PADDING_X + i * xStep;
+    const ratio = range.spread > 0 ? (value - range.min) / range.spread : 0.5;
+    const y = SVG_PADDING_TOP + chartHeight - ratio * chartHeight;
+    return { x, y, value, date: point.date, label: point.label, index: i };
+  });
+
+  const polyline = dots.map((d) => `${d.x},${d.y}`).join(" ");
+
+  return { polyline, dots };
 });
 
 function formatDate(value: string) {
@@ -230,88 +252,79 @@ function describeDeviation(value: number) {
 function selectPoint(point: TrendSeriesPoint | TrendRecordRow) {
   selectedDate.value = point.date;
 }
+
+function onSvgDotHover(index: number | null) {
+  hoveredIndex.value = index;
+}
+
+function onSvgDotClick(index: number) {
+  const point = props.summary.series[index];
+  if (point) selectPoint(point);
+}
+
+// SVG Y-axis ticks (4 ticks)
+const svgYTicks = computed(() => {
+  const range = metricRange.value;
+  const chartHeight = SVG_HEIGHT - SVG_PADDING_TOP - SVG_PADDING_BOTTOM;
+  const ticks: { y: number; label: string }[] = [];
+  for (let i = 0; i < 4; i++) {
+    const ratio = i / 3;
+    const y = SVG_PADDING_TOP + chartHeight - ratio * chartHeight;
+    const value = range.min + ratio * range.spread;
+    const label = activeMetric.value === "steps" ? Math.round(value).toString() : value.toFixed(1);
+    ticks.push({ y, label });
+  }
+  return ticks;
+});
 </script>
 
 <template>
-  <section class="trend-lab">
-    <article class="signal-deck">
-      <div class="signal-deck__copy">
-        <p class="deck-tag">Body Signal Lab</p>
-        <h3>把减重节奏、恢复质量和行为波动，放进一张更像“体征驾驶舱”的趋势页</h3>
-        <p class="deck-summary">{{ progressNarrative }}</p>
-
-        <div class="deck-status">
-          <div>
-            <span>当前判断</span>
-            <strong>{{ progressLabel }}</strong>
-          </div>
-          <div>
-            <span>目标差值</span>
-            <strong>{{ progressGap }} kg</strong>
-          </div>
-          <div>
-            <span>执行完成度</span>
-            <strong>{{ summary.completionRate }}%</strong>
-          </div>
-        </div>
-
-        <div class="deck-ribbon">
-          <article v-for="card in summary.metricCards" :key="card.label" class="ribbon-card" :data-tone="card.tone">
-            <span>{{ card.label }}</span>
-            <strong>{{ card.value }}</strong>
-            <em>{{ card.change }}</em>
-            <small>{{ card.note }}</small>
-          </article>
-        </div>
+  <section class="trend">
+    <!-- Section A: 顶部概览 -->
+    <article class="overview-bar">
+      <div class="overview-bar__header">
+        <p class="overview-bar__eyebrow">Trend Tracker</p>
+        <h3>趋势追踪</h3>
+        <p class="overview-bar__narrative">{{ progressNarrative }}</p>
       </div>
 
-      <aside class="signal-orbit">
-        <div class="signal-orbit__core">
-          <div
-            class="signal-orbit__ring"
-            :style="{ background: `conic-gradient(#204e41 0 ${summary.completionRate}%, rgba(32, 78, 65, 0.12) ${summary.completionRate}% 100%)` }"
-          >
-            <div class="signal-orbit__center">
-              <span>21 天体征状态</span>
-              <strong>{{ summary.latestWeight }} kg</strong>
-              <small>目标 {{ summary.targetWeight }} kg</small>
-            </div>
-          </div>
+      <div class="metric-cards">
+        <article v-for="card in summary.metricCards" :key="card.label" class="metric-card" :data-tone="card.tone">
+          <span>{{ card.label }}</span>
+          <strong>{{ card.value }}</strong>
+          <em>{{ card.change }}</em>
+          <small>{{ card.note }}</small>
+        </article>
+      </div>
 
-          <article
-            v-for="item in orbitMetrics"
-            :key="item.label"
-            class="orbit-node"
-            :style="{ transform: `translate(-50%, -50%) rotate(${item.angle}) translateY(-168px) rotate(-${item.angle})` }"
-          >
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-          </article>
+      <div class="overview-bar__meta">
+        <div class="meta-item">
+          <span>当前判断</span>
+          <strong>{{ progressLabel }}</strong>
         </div>
-
-        <div class="signal-orbit__footer">
-          <article>
-            <span>日均睡眠</span>
-            <strong>{{ summary.averageSleepHours.toFixed(1) }} h</strong>
-          </article>
-          <article>
-            <span>日均步数</span>
-            <strong>{{ summary.averageSteps }}</strong>
-          </article>
-          <article>
-            <span>日均训练</span>
-            <strong>{{ summary.averageTrainingMinutes }} 分钟</strong>
-          </article>
+        <div class="meta-item">
+          <span>目标差值</span>
+          <strong>{{ progressGap }} kg</strong>
         </div>
-      </aside>
+        <div class="meta-item">
+          <span>完成度</span>
+          <strong>{{ summary.completionRate }}%</strong>
+        </div>
+        <div class="meta-item">
+          <span>日均训练</span>
+          <strong>{{ summary.averageTrainingMinutes }} 分钟</strong>
+        </div>
+      </div>
     </article>
 
-    <section class="lab-grid">
-      <article class="panel panel--track">
-        <div class="panel__header">
+    <!-- Section B: 图表区 -->
+    <section class="chart-grid">
+      <!-- 左侧：SVG 折线图 -->
+      <article class="chart-card">
+        <div class="chart-card__header">
           <div>
-            <p class="panel__eyebrow">Metric Track</p>
-            <h4>用节律柱带看指标，不再只是看一根折线</h4>
+            <p class="chart-card__eyebrow">Trend Line</p>
+            <h4>指标趋势</h4>
           </div>
           <div class="metric-pills">
             <button
@@ -328,8 +341,8 @@ function selectPoint(point: TrendSeriesPoint | TrendRecordRow) {
           </div>
         </div>
 
-        <div class="track-hero">
-          <div>
+        <div class="chart-hero">
+          <div class="chart-hero__stat">
             <span>{{ metricMeta[activeMetric].label }}当前读数</span>
             <strong>{{ metricHeadline }}</strong>
             <small>
@@ -341,29 +354,116 @@ function selectPoint(point: TrendSeriesPoint | TrendRecordRow) {
               · {{ metricMeta[activeMetric].judge(metricChange) }}
             </small>
           </div>
-          <div>
+          <div class="chart-hero__stat">
             <span>阶段均值</span>
             <strong>{{ metricMeta[activeMetric].formatter(metricAverage) }}</strong>
             <small>区间 {{ metricRange.min.toFixed(1) }} - {{ metricRange.max.toFixed(1) }} {{ metricMeta[activeMetric].unit }}</small>
           </div>
         </div>
 
-        <div class="track-strip">
-          <button
-            v-for="point in metricTrack"
-            :key="point.date"
-            type="button"
-            class="track-bar"
-            :class="{ 'track-bar--active': selectedDate === point.date }"
-            @click="selectPoint(point)"
+        <!-- SVG 折线图 -->
+        <div class="svg-chart">
+          <svg
+            :viewBox="`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`"
+            preserveAspectRatio="xMidYMid meet"
+            class="svg-chart__svg"
           >
-            <span class="track-bar__glow" :style="{ background: metricMeta[activeMetric].accent, height: `${point.intensity}%` }"></span>
-            <small>{{ point.label }}</small>
-            <strong>{{ activeMetric === 'steps' ? Math.round(point.value) : point.value.toFixed(1) }}</strong>
-          </button>
+            <!-- 网格线 -->
+            <line
+              v-for="tick in svgYTicks"
+              :key="tick.y"
+              :x1="SVG_PADDING_X"
+              :y1="tick.y"
+              :x2="SVG_WIDTH - SVG_PADDING_X"
+              :y2="tick.y"
+              class="svg-grid-line"
+            />
+
+            <!-- Y轴标签 -->
+            <text
+              v-for="tick in svgYTicks"
+              :key="'label-' + tick.y"
+              :x="SVG_PADDING_X - 8"
+              :y="tick.y + 4"
+              class="svg-axis-label"
+              text-anchor="end"
+            >
+              {{ tick.label }}
+            </text>
+
+            <!-- 折线 -->
+            <polyline
+              v-if="svgPoints.polyline"
+              :points="svgPoints.polyline"
+              :stroke="metricMeta[activeMetric].accent"
+              class="svg-line"
+            />
+
+            <!-- 均值参考线 -->
+            <line
+              v-if="svgPoints.dots.length > 1"
+              :x1="SVG_PADDING_X"
+              :y1="svgYTicks[1]?.y ?? 0"
+              :x2="SVG_WIDTH - SVG_PADDING_X"
+              :y2="svgYTicks[1]?.y ?? 0"
+              class="svg-avg-line"
+              :stroke="metricMeta[activeMetric].accent"
+            />
+
+            <!-- 数据点 -->
+            <g
+              v-for="dot in svgPoints.dots"
+              :key="dot.date"
+              class="svg-dot-group"
+              @mouseenter="onSvgDotHover(dot.index)"
+              @mouseleave="onSvgDotHover(null)"
+              @click="onSvgDotClick(dot.index)"
+            >
+              <circle
+                :cx="dot.x"
+                :cy="dot.y"
+                :r="hoveredIndex === dot.index || selectedDate === dot.date ? 7 : 4"
+                :fill="selectedDate === dot.date ? metricMeta[activeMetric].accent : '#fff'"
+                :stroke="metricMeta[activeMetric].accent"
+                :stroke-width="selectedDate === dot.date ? 3 : 2"
+                class="svg-dot"
+              />
+
+              <!-- 悬浮提示 -->
+              <g v-if="hoveredIndex === dot.index || (selectedDate === dot.date && hoveredIndex === null)">
+                <rect
+                  :x="dot.x - 36"
+                  :y="dot.y - 34"
+                  width="72"
+                  height="24"
+                  rx="8"
+                  class="svg-tooltip-bg"
+                />
+                <text
+                  :x="dot.x"
+                  :y="dot.y - 18"
+                  class="svg-tooltip-text"
+                  text-anchor="middle"
+                >
+                  {{ activeMetric === "steps" ? Math.round(dot.value) : dot.value.toFixed(1) }}
+                </text>
+              </g>
+
+              <!-- X轴日期 -->
+              <text
+                v-if="svgPoints.dots.length <= 14 || dot.index % 2 === 0"
+                :x="dot.x"
+                :y="SVG_HEIGHT - SVG_PADDING_BOTTOM + 20"
+                class="svg-axis-label"
+                text-anchor="middle"
+              >
+                {{ dot.label }}
+              </text>
+            </g>
+          </svg>
         </div>
 
-        <div v-if="selectedSeriesPoint" class="track-note">
+        <div v-if="selectedSeriesPoint" class="chart-summary">
           <div>
             <span>选中节点</span>
             <strong>{{ selectedSeriesPoint.label }}</strong>
@@ -372,21 +472,20 @@ function selectPoint(point: TrendSeriesPoint | TrendRecordRow) {
         </div>
       </article>
 
-      <aside class="panel panel--spotlight">
-        <div class="panel__header">
-          <div>
-            <p class="panel__eyebrow">Day Capsule</p>
-            <h4>单日体征胶囊</h4>
-          </div>
+      <!-- 右侧：单日详情 -->
+      <aside class="detail-card">
+        <div class="detail-card__header">
+          <p class="detail-card__eyebrow">Day Snapshot</p>
+          <h4>单日详情</h4>
         </div>
 
-        <div v-if="selectedRecord" class="capsule">
-          <div class="capsule__pulse">
+        <div v-if="selectedRecord" class="snapshot">
+          <div class="snapshot__ring">
             <div
-              class="capsule__pulse-ring"
+              class="snapshot__ring-fill"
               :style="{ background: `conic-gradient(#d9782f 0 ${dailyPulse}%, rgba(217, 120, 47, 0.12) ${dailyPulse}% 100%)` }"
             >
-              <div class="capsule__pulse-core">
+              <div class="snapshot__ring-core">
                 <span>{{ formatDate(selectedRecord.date) }}</span>
                 <strong>{{ dailyPulse }}</strong>
                 <small>日节律分</small>
@@ -394,15 +493,15 @@ function selectPoint(point: TrendSeriesPoint | TrendRecordRow) {
             </div>
           </div>
 
-          <div class="capsule__meta">
-            <span class="capsule__status">{{ selectedRecord.status }}</span>
+          <div class="snapshot__meta">
+            <span class="snapshot__status">{{ selectedRecord.status }}</span>
             <p>
               热量差 {{ selectedRecord.calorieGap }} kcal，训练 {{ selectedRecord.trainingMinutes }} 分钟，步数
               {{ selectedRecord.steps }}，睡眠 {{ selectedRecord.sleepHours }} 小时。
             </p>
           </div>
 
-          <div class="capsule__grid">
+          <div class="snapshot__metrics">
             <article>
               <span>体重</span>
               <strong>{{ selectedRecord.weightKg }} kg</strong>
@@ -420,504 +519,459 @@ function selectPoint(point: TrendSeriesPoint | TrendRecordRow) {
               <strong>{{ selectedRecord.sleepHours }} h</strong>
             </article>
           </div>
+
+          <div class="snapshot__bars">
+            <div class="snapshot__bar-row">
+              <span>步数完成</span>
+              <div class="snapshot__bar-rail">
+                <span class="snapshot__bar-fill" :style="{ width: `${Math.min(selectedRecord.steps / 10000, 1) * 100}%` }"></span>
+              </div>
+              <strong>{{ selectedRecord.steps }}</strong>
+            </div>
+            <div class="snapshot__bar-row">
+              <span>训练时长</span>
+              <div class="snapshot__bar-rail">
+                <span class="snapshot__bar-fill snapshot__bar-fill--warm" :style="{ width: `${Math.min(selectedRecord.trainingMinutes / 60, 1) * 100}%` }"></span>
+              </div>
+              <strong>{{ selectedRecord.trainingMinutes }} 分钟</strong>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="snapshot--empty">
+          <p>暂无选中日期的详情数据</p>
         </div>
       </aside>
     </section>
 
-    <section class="matrix-grid">
-      <article class="panel panel--matrix">
-        <div class="panel__header">
-          <div>
-            <p class="panel__eyebrow">Behavior Matrix</p>
-            <h4>恢复与行为拆成两条矩阵轨道</h4>
-          </div>
+    <!-- Section C: 底部区域 -->
+    <section class="bottom-grid">
+      <!-- 左侧：达标统计 -->
+      <article class="breakdown-card">
+        <div class="breakdown-card__header">
+          <p class="breakdown-card__eyebrow">Breakdown</p>
+          <h4>达标统计</h4>
         </div>
 
-        <div class="matrix">
-          <section class="matrix__group">
-            <header>
-              <span>恢复轨道</span>
-              <strong>越长说明过去 21 天越稳定</strong>
-            </header>
-            <article v-for="item in summary.recoveryBreakdown" :key="item.label" class="matrix-row" :data-tone="item.tone">
-              <div class="matrix-row__head">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}{{ item.unit }}</strong>
-              </div>
-              <div class="matrix-row__rail">
-                <span class="matrix-row__fill" :style="{ width: `${(item.value / recoveryMax) * 100}%` }"></span>
-              </div>
-            </article>
-          </section>
+        <div class="breakdown-group">
+          <header>
+            <span>恢复达标</span>
+            <strong>21 天内各项恢复指标的达标情况</strong>
+          </header>
+          <article v-for="item in summary.recoveryBreakdown" :key="item.label" class="breakdown-row" :data-tone="item.tone">
+            <div class="breakdown-row__head">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}{{ item.unit }}</strong>
+            </div>
+            <div class="breakdown-row__rail">
+              <span class="breakdown-row__fill" :style="{ width: `${(item.value / recoveryMax) * 100}%` }"></span>
+            </div>
+          </article>
+        </div>
 
-          <section class="matrix__group">
-            <header>
-              <span>行为轨道</span>
-              <strong>用摄入、消耗和缺口看结构关系</strong>
-            </header>
-            <article v-for="item in summary.behaviorBreakdown" :key="item.label" class="matrix-row matrix-row--warm" :data-tone="item.tone">
-              <div class="matrix-row__head">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }} {{ item.unit }}</strong>
-              </div>
-              <div class="matrix-row__rail">
-                <span class="matrix-row__fill matrix-row__fill--warm" :style="{ width: `${(item.value / behaviorMax) * 100}%` }"></span>
-              </div>
-            </article>
-          </section>
+        <div class="breakdown-group">
+          <header>
+            <span>行为分析</span>
+            <strong>摄入、消耗和热量缺口的结构关系</strong>
+          </header>
+          <article v-for="item in summary.behaviorBreakdown" :key="item.label" class="breakdown-row breakdown-row--warm" :data-tone="item.tone">
+            <div class="breakdown-row__head">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }} {{ item.unit }}</strong>
+            </div>
+            <div class="breakdown-row__rail">
+              <span class="breakdown-row__fill breakdown-row__fill--warm" :style="{ width: `${(item.value / behaviorMax) * 100}%` }"></span>
+            </div>
+          </article>
         </div>
       </article>
 
-      <aside class="panel panel--insights">
-        <div class="panel__header">
-          <div>
-            <p class="panel__eyebrow">Signal Notes</p>
-            <h4>趋势便签</h4>
+      <!-- 右侧：洞察 + 记录列表 -->
+      <div class="side-stack">
+        <!-- 趋势洞察 -->
+        <article class="insights-card">
+          <div class="insights-card__header">
+            <p class="insights-card__eyebrow">Insights</p>
+            <h4>趋势洞察</h4>
           </div>
-        </div>
 
-        <div class="note-stack">
-          <article v-for="item in summary.insights" :key="item.title" class="note-card" :data-tone="item.tone">
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.detail }}</p>
-          </article>
-        </div>
-      </aside>
+          <div class="insight-stack">
+            <article v-for="item in summary.insights" :key="item.title" class="insight-item" :data-tone="item.tone">
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.detail }}</p>
+            </article>
+          </div>
+        </article>
+
+        <!-- 记录列表 -->
+        <article class="records-card">
+          <div class="records-card__header">
+            <div>
+              <p class="records-card__eyebrow">Records</p>
+              <h4>每日记录</h4>
+            </div>
+            <div class="status-pills">
+              <button
+                v-for="status in statuses"
+                :key="status"
+                type="button"
+                class="status-pill"
+                :class="{ 'status-pill--active': status === activeStatus }"
+                @click="activeStatus = status"
+              >
+                {{ status }}
+              </button>
+            </div>
+          </div>
+
+          <div class="record-list">
+            <button
+              v-for="item in filteredRecords"
+              :key="item.date"
+              type="button"
+              class="record-row"
+              :class="{ 'record-row--active': item.date === selectedDate }"
+              @click="selectPoint(item)"
+            >
+              <div class="record-row__date">
+                <span>{{ formatDate(item.date) }}</span>
+                <strong>{{ item.status }}</strong>
+              </div>
+              <div class="record-row__metrics">
+                <span>体重 {{ item.weightKg }} kg</span>
+                <span>体脂 {{ item.bodyFatRate }}%</span>
+                <span>腰围 {{ item.waistCm }} cm</span>
+                <span>睡眠 {{ item.sleepHours }} h</span>
+                <span>步数 {{ item.steps }}</span>
+                <span>训练 {{ item.trainingMinutes }} 分钟</span>
+                <span>热量差 {{ item.calorieGap }} kcal</span>
+              </div>
+            </button>
+          </div>
+        </article>
+      </div>
     </section>
-
-    <article class="panel panel--records">
-      <div class="panel__header">
-        <div>
-          <p class="panel__eyebrow">Record Feed</p>
-          <h4>趋势记录流</h4>
-        </div>
-        <div class="status-switches">
-          <button
-            v-for="status in statuses"
-            :key="status"
-            type="button"
-            class="status-switch"
-            :class="{ 'status-switch--active': status === activeStatus }"
-            @click="activeStatus = status"
-          >
-            {{ status }}
-          </button>
-        </div>
-      </div>
-
-      <div class="record-list">
-        <button
-          v-for="item in filteredRecords"
-          :key="item.date"
-          type="button"
-          class="record-card"
-          :class="{ 'record-card--active': item.date === selectedDate }"
-          @click="selectPoint(item)"
-        >
-          <div class="record-card__date">
-            <span>{{ formatDate(item.date) }}</span>
-            <strong>{{ item.status }}</strong>
-          </div>
-          <div class="record-card__metrics">
-            <span>体重 {{ item.weightKg }} kg</span>
-            <span>体脂 {{ item.bodyFatRate }}%</span>
-            <span>腰围 {{ item.waistCm }} cm</span>
-            <span>睡眠 {{ item.sleepHours }} h</span>
-            <span>步数 {{ item.steps }}</span>
-            <span>训练 {{ item.trainingMinutes }} 分钟</span>
-            <span>热量差 {{ item.calorieGap }} kcal</span>
-          </div>
-        </button>
-      </div>
-    </article>
   </section>
 </template>
 
 <style scoped>
-.trend-lab {
+.trend {
   display: grid;
   gap: 18px;
   padding-right: 18px;
 }
 
-.signal-deck,
-.panel,
-.ribbon-card,
-.note-card,
-.record-card,
-.orbit-node {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(33, 53, 76, 0.1);
-  box-shadow: 0 18px 44px rgba(32, 45, 64, 0.08);
-}
-
-.signal-deck,
-.panel {
-  border-radius: 32px;
-}
-
-.signal-deck {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) 430px;
-  gap: 18px;
-  padding: 28px;
-  background:
-    radial-gradient(circle at 10% 18%, rgba(43, 161, 120, 0.16), transparent 26%),
-    radial-gradient(circle at 84% 22%, rgba(255, 166, 96, 0.22), transparent 24%),
-    linear-gradient(135deg, rgba(247, 250, 255, 0.98), rgba(249, 245, 238, 0.97));
-}
-
-.deck-tag,
-.panel__eyebrow {
-  margin: 0 0 10px;
-  font-size: 0.76rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: #6b7689;
-}
-
-.signal-deck h3,
-.panel h4 {
-  margin: 0;
-  color: #18263a;
-}
-
-.signal-deck h3 {
-  max-width: 760px;
-  font-size: 2.18rem;
-  line-height: 1.08;
-}
-
-.deck-summary,
-.ribbon-card small,
-.track-hero small,
-.capsule__meta p,
-.note-card p,
-.record-card__metrics span,
-.matrix__group header span {
-  color: #68758a;
-}
-
-.deck-summary {
-  max-width: 780px;
-  margin: 14px 0 0;
-  line-height: 1.75;
-}
-
-.deck-status {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.deck-status > div,
-.capsule__grid article,
-.signal-orbit__footer article,
-.track-note,
-.matrix__group,
-.capsule {
+/* ===== 通用面板样式 ===== */
+.overview-bar,
+.chart-card,
+.detail-card,
+.breakdown-card,
+.insights-card,
+.records-card {
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 252, 246, 0.92);
+  border: 1px solid rgba(57, 87, 63, 0.1);
+  box-shadow: 0 16px 40px rgba(30, 44, 37, 0.08);
 }
 
-.deck-status > div {
-  padding: 18px;
-  backdrop-filter: blur(4px);
+.overview-bar__eyebrow,
+.chart-card__eyebrow,
+.detail-card__eyebrow,
+.breakdown-card__eyebrow,
+.insights-card__eyebrow,
+.records-card__eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
 }
 
-.deck-status span,
-.ribbon-card span,
-.signal-orbit__footer span,
-.track-hero span,
-.track-note span,
-.capsule__grid span,
-.record-card__date span,
-.matrix-row__head span,
-.capsule__pulse-core span {
-  color: #728098;
+/* ===== Section A: 顶部概览 ===== */
+.overview-bar {
+  padding: 28px;
 }
 
-.deck-status strong,
-.ribbon-card strong,
-.signal-orbit__footer strong,
-.track-hero strong,
-.track-note strong,
-.capsule__grid strong,
-.record-card__date strong,
-.matrix-row__head strong,
-.capsule__pulse-core strong {
-  display: block;
-  margin-top: 8px;
-  color: #18263a;
+.overview-bar__header h3 {
+  margin: 0;
+  font-size: 2rem;
+  color: var(--color-text);
 }
 
-.deck-status strong {
-  font-size: 1.35rem;
+.overview-bar__narrative {
+  margin: 10px 0 0;
+  color: var(--color-text-soft);
+  line-height: 1.75;
+  max-width: 800px;
 }
 
-.deck-ribbon {
+.metric-cards {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  margin-top: 18px;
+  margin-top: 20px;
 }
 
-.ribbon-card {
+.metric-card {
   padding: 18px;
-  border-radius: 24px;
+  border-radius: 20px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(244, 247, 252, 0.72));
+  border: 1px solid rgba(57, 87, 63, 0.08);
 }
 
-.ribbon-card strong {
-  font-size: 1.5rem;
+.metric-card span {
+  color: var(--color-text-soft);
+  font-size: 0.88rem;
 }
 
-.ribbon-card em {
+.metric-card strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 6px;
+  font-size: 1.5rem;
+  color: var(--color-text);
+}
+
+.metric-card em {
+  display: block;
+  margin-top: 6px;
   font-style: normal;
   font-weight: 700;
   color: #225c49;
 }
 
-.ribbon-card[data-tone="warning"] em {
+.metric-card small {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
+}
+
+.metric-card[data-tone="warning"] em {
   color: #af6f2b;
 }
 
-.signal-orbit {
+.overview-bar__meta {
   display: grid;
-  gap: 18px;
-  align-content: start;
-}
-
-.signal-orbit__core {
-  position: relative;
-  min-height: 410px;
-  border-radius: 32px;
-  background:
-    radial-gradient(circle at center, rgba(32, 78, 65, 0.06), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(244, 241, 234, 0.76));
-}
-
-.signal-orbit__ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 280px;
-  height: 280px;
-  padding: 18px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.signal-orbit__center {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  border-radius: 50%;
-  background: linear-gradient(180deg, rgba(244, 248, 250, 0.98), rgba(254, 250, 243, 0.98));
-}
-
-.signal-orbit__center strong {
-  font-size: 2.4rem;
-  color: #183127;
-}
-
-.signal-orbit__center small {
-  color: #718095;
-}
-
-.orbit-node {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 132px;
-  padding: 12px 14px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.88);
-  text-align: center;
-}
-
-.orbit-node strong {
-  font-size: 1.05rem;
-}
-
-.signal-orbit__footer {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  margin-top: 18px;
 }
 
-.signal-orbit__footer article {
-  padding: 16px;
+.meta-item {
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(4px);
 }
 
-.lab-grid,
-.matrix-grid {
+.meta-item span {
+  color: var(--color-text-soft);
+  font-size: 0.88rem;
+}
+
+.meta-item strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-text);
+  font-size: 1.2rem;
+}
+
+/* ===== Section B: 图表区 ===== */
+.chart-grid {
   display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 340px;
   gap: 18px;
 }
 
-.lab-grid {
-  grid-template-columns: minmax(0, 1.2fr) 340px;
-}
-
-.matrix-grid {
-  grid-template-columns: minmax(0, 1.05fr) 360px;
-}
-
-.panel {
+.chart-card {
   padding: 24px;
-  background: rgba(253, 251, 246, 0.94);
-}
-
-.panel--track {
   background:
-    radial-gradient(circle at right top, rgba(45, 137, 110, 0.12), transparent 24%),
-    rgba(253, 251, 246, 0.96);
+    radial-gradient(circle at right top, rgba(45, 137, 110, 0.08), transparent 24%),
+    rgba(255, 252, 246, 0.96);
 }
 
-.panel--spotlight {
-  background:
-    radial-gradient(circle at center top, rgba(240, 149, 75, 0.14), transparent 28%),
-    rgba(252, 248, 242, 0.96);
-}
-
-.panel--matrix {
-  background:
-    radial-gradient(circle at left top, rgba(102, 128, 255, 0.12), transparent 22%),
-    rgba(248, 251, 255, 0.96);
-}
-
-.panel--insights,
-.panel--records {
-  background: rgba(253, 251, 246, 0.96);
-}
-
-.panel__header,
-.track-hero,
-.matrix-row__head {
+.chart-card__header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 16px;
 }
 
-.metric-pills,
-.status-switches {
+.chart-card__header h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.2rem;
+}
+
+.metric-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-end;
 }
 
-.metric-pill,
-.status-switch {
+.metric-pill {
   border: 0;
-  padding: 9px 14px;
+  padding: 8px 14px;
   border-radius: 999px;
-  background: rgba(33, 53, 76, 0.08);
-  color: #31445f;
+  background: rgba(34, 52, 42, 0.08);
+  color: var(--color-text);
   font-weight: 700;
+  font-size: 0.88rem;
   cursor: pointer;
+  transition: background 0.2s, color 0.2s;
 }
 
 .metric-pill--active {
   background: var(--pill-accent);
-  color: #f8fbff;
+  color: #fffaf0;
 }
 
-.status-switch--active {
-  background: linear-gradient(135deg, #1f4c66, #3b7386);
-  color: #f8fbff;
-}
-
-.track-hero {
+.chart-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
   margin-top: 18px;
   padding: 18px;
-  border-radius: 24px;
-  background: rgba(241, 247, 247, 0.86);
-  align-items: end;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.6);
 }
 
-.track-hero strong {
-  font-size: 1.7rem;
+.chart-hero__stat span {
+  color: var(--color-text-soft);
+  font-size: 0.88rem;
 }
 
-.track-strip {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 12px;
+.chart-hero__stat strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.6rem;
+  color: var(--color-text);
+}
+
+.chart-hero__stat small {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-soft);
+}
+
+/* SVG 折线图 */
+.svg-chart {
   margin-top: 16px;
-  align-items: end;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 8px 4px;
+  overflow: hidden;
 }
 
-.track-bar {
-  min-height: 228px;
-  padding: 14px 12px;
-  display: flex;
-  flex-direction: column;
-  justify-content: end;
-  gap: 6px;
-  border: 0;
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(240, 245, 250, 0.9), rgba(255, 255, 255, 0.9));
+.svg-chart__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.svg-grid-line {
+  stroke: rgba(57, 87, 63, 0.08);
+  stroke-width: 1;
+}
+
+.svg-avg-line {
+  stroke-dasharray: 6 4;
+  stroke-width: 1;
+  opacity: 0.4;
+}
+
+.svg-axis-label {
+  font-size: 11px;
+  fill: var(--color-text-soft);
+}
+
+.svg-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.svg-dot-group {
   cursor: pointer;
 }
 
-.track-bar__glow {
-  display: block;
-  width: 100%;
-  min-height: 18px;
-  border-radius: 18px 18px 8px 8px;
-  opacity: 0.88;
+.svg-dot {
+  transition: r 0.15s ease, fill 0.15s ease, stroke-width 0.15s ease;
 }
 
-.track-bar strong {
-  color: #18263a;
-  font-size: 1rem;
+.svg-tooltip-bg {
+  fill: rgba(255, 252, 246, 0.95);
+  stroke: rgba(57, 87, 63, 0.12);
+  stroke-width: 1;
 }
 
-.track-bar--active {
-  box-shadow: inset 0 0 0 2px rgba(28, 90, 74, 0.18);
-  transform: translateY(-2px);
+.svg-tooltip-text {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--color-text);
 }
 
-.track-note {
-  margin-top: 16px;
-  padding: 16px 18px;
+.chart-summary {
+  margin-top: 14px;
+  padding: 14px 18px;
   display: flex;
   justify-content: space-between;
-  gap: 16px;
   align-items: center;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
 }
 
-.track-note p {
+.chart-summary span {
+  color: var(--color-text-soft);
+  font-size: 0.88rem;
+}
+
+.chart-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text);
+}
+
+.chart-summary p {
   margin: 0;
-  color: #516178;
+  color: var(--color-text-soft);
 }
 
-.capsule {
+/* 单日详情卡片 */
+.detail-card {
+  padding: 24px;
+  align-content: start;
+  background:
+    radial-gradient(circle at center top, rgba(240, 149, 75, 0.1), transparent 28%),
+    rgba(255, 252, 246, 0.96);
+}
+
+.detail-card__header h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.2rem;
+}
+
+.snapshot {
+  display: grid;
+  gap: 16px;
   margin-top: 18px;
-  padding: 18px;
 }
 
-.capsule__pulse {
+.snapshot__ring {
   display: grid;
   place-items: center;
 }
 
-.capsule__pulse-ring {
-  width: 190px;
-  height: 190px;
+.snapshot__ring-fill {
+  width: 180px;
+  height: 180px;
   padding: 14px;
   border-radius: 50%;
 }
 
-.capsule__pulse-core {
+.snapshot__ring-core {
   width: 100%;
   height: 100%;
   display: grid;
@@ -927,201 +981,395 @@ function selectPoint(point: TrendSeriesPoint | TrendRecordRow) {
   text-align: center;
 }
 
-.capsule__pulse-core strong {
-  margin-top: 6px;
+.snapshot__ring-core span {
+  color: var(--color-text-soft);
+  font-size: 0.88rem;
+}
+
+.snapshot__ring-core strong {
+  display: block;
+  margin-top: 4px;
   font-size: 2.2rem;
   line-height: 1;
+  color: var(--color-text);
 }
 
-.capsule__meta {
-  margin-top: 18px;
+.snapshot__ring-core small {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-soft);
 }
 
-.capsule__status {
+.snapshot__meta {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.snapshot__status {
   display: inline-flex;
-  padding: 7px 12px;
+  padding: 6px 12px;
   border-radius: 999px;
   background: rgba(27, 68, 93, 0.08);
   color: #264a63;
   font-weight: 700;
+  font-size: 0.88rem;
 }
 
-.capsule__meta p {
-  margin: 12px 0 0;
+.snapshot__meta p {
+  margin: 10px 0 0;
+  color: var(--color-text-soft);
   line-height: 1.7;
+  font-size: 0.88rem;
 }
 
-.capsule__grid {
+.snapshot__metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  gap: 10px;
 }
 
-.capsule__grid article {
-  padding: 16px;
+.snapshot__metrics article {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
 }
 
-.matrix {
+.snapshot__metrics span {
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
+}
+
+.snapshot__metrics strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text);
+}
+
+.snapshot__bars {
   display: grid;
-  gap: 16px;
-  margin-top: 18px;
+  gap: 10px;
 }
 
-.matrix__group {
-  padding: 18px;
+.snapshot__bar-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  gap: 10px;
+  align-items: center;
 }
 
-.matrix__group header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
+.snapshot__bar-row span {
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
 }
 
-.matrix__group header strong {
-  color: #23354b;
-  font-size: 0.95rem;
+.snapshot__bar-row strong {
+  color: var(--color-text);
+  font-size: 0.82rem;
 }
 
-.matrix-row + .matrix-row {
-  margin-top: 12px;
-}
-
-.matrix-row__rail {
-  height: 12px;
-  margin-top: 10px;
-  overflow: hidden;
+.snapshot__bar-rail {
+  height: 8px;
   border-radius: 999px;
-  background: rgba(33, 53, 76, 0.08);
+  background: rgba(57, 87, 63, 0.08);
+  overflow: hidden;
 }
 
-.matrix-row__fill {
+.snapshot__bar-fill {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #2b60a1, #68b7b2);
 }
 
-.matrix-row__fill--warm {
+.snapshot__bar-fill--warm {
   background: linear-gradient(90deg, #d9782f, #f0be62);
 }
 
-.note-stack {
+.snapshot--empty {
+  margin-top: 18px;
+  padding: 40px;
+  text-align: center;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.snapshot--empty p {
+  margin: 0;
+  color: var(--color-text-soft);
+}
+
+/* ===== Section C: 底部区域 ===== */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 18px;
+}
+
+.breakdown-card {
+  padding: 24px;
+  align-content: start;
+  background:
+    radial-gradient(circle at left top, rgba(102, 128, 255, 0.08), transparent 22%),
+    rgba(255, 252, 246, 0.96);
+}
+
+.breakdown-card__header h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.2rem;
+}
+
+.breakdown-group {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.breakdown-group + .breakdown-group {
+  margin-top: 14px;
+}
+
+.breakdown-group header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.breakdown-group header span {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.breakdown-group header strong {
+  color: var(--color-text-soft);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.breakdown-row + .breakdown-row {
+  margin-top: 12px;
+}
+
+.breakdown-row__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.breakdown-row__head span {
+  color: var(--color-text-soft);
+  font-size: 0.88rem;
+}
+
+.breakdown-row__head strong {
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.breakdown-row__rail {
+  height: 10px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: rgba(57, 87, 63, 0.06);
+  overflow: hidden;
+}
+
+.breakdown-row__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2b60a1, #68b7b2);
+}
+
+.breakdown-row__fill--warm {
+  background: linear-gradient(90deg, #d9782f, #f0be62);
+}
+
+.side-stack {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.insights-card {
+  padding: 24px;
+}
+
+.insights-card__header h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.2rem;
+}
+
+.insight-stack {
   display: grid;
   gap: 12px;
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
-.note-card {
-  padding: 18px;
-  border-radius: 24px;
+.insight-item {
+  padding: 16px;
+  border-radius: 18px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 244, 236, 0.82));
+  border: 1px solid rgba(57, 87, 63, 0.08);
 }
 
-.note-card strong {
-  color: #18263a;
+.insight-item strong {
+  color: var(--color-text);
 }
 
-.note-card p {
-  margin: 8px 0 0;
+.insight-item p {
+  margin: 6px 0 0;
+  color: var(--color-text-soft);
   line-height: 1.7;
+  font-size: 0.92rem;
 }
 
-.note-card[data-tone="positive"] {
+.insight-item[data-tone="positive"] {
   border-color: rgba(46, 123, 96, 0.18);
 }
 
-.note-card[data-tone="warning"] {
+.insight-item[data-tone="warning"] {
   border-color: rgba(217, 120, 47, 0.22);
+}
+
+/* 记录列表 */
+.records-card {
+  padding: 24px;
+}
+
+.records-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.records-card__header h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.2rem;
+}
+
+.status-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status-pill {
+  border: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(34, 52, 42, 0.08);
+  color: var(--color-text);
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.status-pill--active {
+  background: linear-gradient(135deg, #22342a, #42604b);
+  color: #fffaf0;
 }
 
 .record-list {
   display: grid;
-  gap: 12px;
-  margin-top: 18px;
+  gap: 10px;
+  margin-top: 16px;
 }
 
-.record-card {
+.record-row {
   width: 100%;
-  padding: 18px;
+  padding: 14px 16px;
   display: grid;
-  grid-template-columns: 210px 1fr;
-  gap: 18px;
-  border-radius: 24px;
+  grid-template-columns: 160px 1fr;
+  gap: 14px;
+  border-radius: 18px;
   background: linear-gradient(135deg, rgba(247, 250, 255, 0.9), rgba(255, 252, 247, 0.92));
+  border: 1px solid rgba(57, 87, 63, 0.08);
   text-align: left;
   cursor: pointer;
 }
 
-.record-card__date strong {
-  font-size: 1.2rem;
+.record-row__date span {
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
 }
 
-.record-card__metrics {
+.record-row__date strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.record-row__metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
-.record-card__metrics span {
-  padding: 10px 12px;
-  border-radius: 16px;
+.record-row__metrics span {
+  padding: 8px 10px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.72);
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
 }
 
-.record-card--active {
+.record-row--active {
   box-shadow: inset 0 0 0 2px rgba(32, 78, 65, 0.16);
 }
 
-@media (max-width: 1360px) {
-  .signal-deck,
-  .lab-grid,
-  .matrix-grid {
+/* ===== 响应式 ===== */
+@media (max-width: 1180px) {
+  .chart-grid,
+  .bottom-grid {
     grid-template-columns: 1fr;
   }
 
-  .deck-ribbon,
-  .track-strip {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .metric-cards,
+  .overview-bar__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 980px) {
-  .signal-deck,
-  .panel {
+@media (max-width: 780px) {
+  .trend {
+    padding-right: 0;
+  }
+
+  .overview-bar,
+  .chart-card,
+  .detail-card,
+  .breakdown-card,
+  .insights-card,
+  .records-card {
     padding: 20px;
   }
 
-  .panel__header,
-  .track-hero,
-  .track-note,
-  .matrix__group header,
-  .matrix-row__head {
+  .metric-cards,
+  .overview-bar__meta,
+  .chart-hero,
+  .snapshot__metrics,
+  .record-row,
+  .record-row__metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-card__header,
+  .breakdown-group header,
+  .records-card__header {
     flex-direction: column;
-    align-items: flex-start;
   }
 
-  .deck-status,
-  .deck-ribbon,
-  .signal-orbit__footer,
-  .capsule__grid,
-  .record-card,
-  .record-card__metrics,
-  .track-strip {
-    grid-template-columns: 1fr;
-  }
-
-  .record-card {
-    grid-template-columns: 1fr;
-  }
-
-  .signal-orbit__core {
-    min-height: 460px;
-  }
-
-  .orbit-node {
-    width: 118px;
+  .metric-pills,
+  .status-pills {
+    justify-content: flex-start;
   }
 }
 </style>

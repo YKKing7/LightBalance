@@ -11,7 +11,7 @@ export type AssistantModalityInputType =
 
 export type ModuleKey = "overview" | "body" | "diet" | "exercise" | "trend" | "assistant";
 
-export type TrendMetricKey = "weightKg" | "bodyFatRate" | "waistCm" | "sleepHours" | "steps";
+export type TrendMetricKey = "weightKg" | "bodyFatRate" | "waistCm" | "sleepHours" | "steps" | "trainingMinutes" | "calorieIntake" | "calorieBurned";
 
 export type LoadingState = Record<ModuleKey, boolean>;
 

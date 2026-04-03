@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import * as XLSX from "xlsx";
 import type { TrendMetricKey, TrendRecordRow, TrendSeriesPoint, TrendSummary } from "../services/types";
 
 const props = defineProps<{
@@ -8,9 +9,9 @@ const props = defineProps<{
 
 const activeMetric = ref<TrendMetricKey>("weightKg");
 const activeStatus = ref<"全部" | string>("全部");
-const selectedDate = ref<string | null>(props.summary.series.at(-1)?.date ?? null);
+const selectedDate = ref<string | null>(props.summary.series.length ? props.summary.series[props.summary.series.length - 1]?.date ?? null : null);
 const hoveredIndex = ref<number | null>(null);
-const latestAvailableDate = computed(() => props.summary.series.at(-1)?.date ?? props.summary.records.at(-1)?.date ?? null);
+const latestAvailableDate = computed(() => { const s = props.summary.series; const r = props.summary.records; return s.length ? s[s.length - 1].date : r.length ? r[r.length - 1].date : null; });
 
 watch(
   () => props.summary,
@@ -18,7 +19,8 @@ watch(
     const availableDates = new Set([...summary.series.map((item) => item.date), ...summary.records.map((item) => item.date)]);
 
     if (!selectedDate.value || !availableDates.has(selectedDate.value)) {
-      selectedDate.value = summary.series.at(-1)?.date ?? summary.records.at(-1)?.date ?? null;
+      const s = summary.series; const r = summary.records;
+      selectedDate.value = s.length ? s[s.length - 1].date : r.length ? r[r.length - 1].date : null;
     }
   },
   { deep: true }
@@ -68,8 +70,34 @@ const metricMeta: Record<
     accent: "#178a82",
     formatter: (value) => `${Math.round(value)} 步`,
     judge: (delta) => (delta >= 0 ? "活动抬升" : "活动偏低")
+  },
+  trainingMinutes: {
+    label: "训练",
+    unit: "min",
+    accent: "#c0392b",
+    formatter: (value) => `${Math.round(value)} 分钟`,
+    judge: (delta) => (delta >= 0 ? "训练加量" : "训练减量")
+  },
+  calorieIntake: {
+    label: "摄入",
+    unit: "kcal",
+    accent: "#e67e22",
+    formatter: (value) => `${Math.round(value)} kcal`,
+    judge: (delta) => (delta <= 0 ? "摄入收紧" : "摄入走高")
+  },
+  calorieBurned: {
+    label: "运动消耗",
+    unit: "kcal",
+    accent: "#8e44ad",
+    formatter: (value) => `${Math.round(value)} kcal`,
+    judge: (delta) => (delta >= 0 ? "消耗提升" : "消耗回落")
   }
 };
+
+// 过滤掉与 digest 卡片重复的 metric card（恢复节律、活动基础）
+const overviewMetricCards = computed(() =>
+  props.summary.metricCards.filter((card) => card.label !== "恢复节律" && card.label !== "活动基础")
+);
 
 const statuses = computed(() => ["全部", ...new Set(props.summary.records.map((item) => item.status))]);
 
@@ -83,15 +111,17 @@ const filteredRecords = computed(() => {
 
 const selectedSeriesPoint = computed(() => {
   const fallbackDate = selectedDate.value ?? latestAvailableDate.value;
-  return props.summary.series.find((item) => item.date === fallbackDate) ?? props.summary.series.at(-1) ?? null;
+  const s = props.summary.series;
+  return s.find((item) => item.date === fallbackDate) ?? (s.length ? s[s.length - 1] : null);
 });
 
 const selectedRecord = computed(() => {
   const fallbackDate = selectedDate.value ?? latestAvailableDate.value;
-  return props.summary.records.find((item) => item.date === fallbackDate) ?? props.summary.records.at(-1) ?? null;
+  const r = props.summary.records;
+  return r.find((item) => item.date === fallbackDate) ?? (r.length ? r[r.length - 1] : null);
 });
 
-const latestSeriesPoint = computed(() => props.summary.series.at(-1) ?? null);
+const latestSeriesPoint = computed(() => { const s = props.summary.series; return s.length ? s[s.length - 1] : null; });
 const firstSeriesPoint = computed(() => props.summary.series[0] ?? null);
 
 const metricValues = computed(() => props.summary.series.map((item) => Number(item[activeMetric.value])));
@@ -180,6 +210,134 @@ const progressNarrative = computed(() => {
 const recoveryMax = computed(() => Math.max(...props.summary.recoveryBreakdown.map((item) => item.value), 1));
 const behaviorMax = computed(() => Math.max(...props.summary.behaviorBreakdown.map((item) => item.value), 1));
 
+// 饮食概要
+const dietAvgIntake = computed(() => {
+  const series = props.summary.series;
+  return Math.round(series.reduce((s, p) => s + p.calorieIntake, 0) / Math.max(series.length, 1));
+});
+
+const dietAvgBurned = computed(() => {
+  const series = props.summary.series;
+  return Math.round(series.reduce((s, p) => s + p.calorieBurned, 0) / Math.max(series.length, 1));
+});
+
+const dietNarrative = computed(() => {
+  const gap = props.summary.averageCalorieGap;
+  if (gap <= 0) return "日均热量缺口为负值，摄入低于消耗，整体饮食结构有利于减脂推进。";
+  if (gap <= 500) return "热量差控制在合理区间，说明摄入与消耗的节奏基本匹配，继续维持当前饮食策略。";
+  if (gap <= 1500) return "热量差略有偏高，建议适当压缩晚间碳水和高油脂食物的摄入比例。";
+  return "热量差明显偏大，摄入远超消耗，需要重点审视饮食结构，尤其是零食和高热量饮品。";
+});
+
+// 训练概要
+const trainingActiveDays = computed(() => {
+  return props.summary.series.filter((p) => p.trainingMinutes >= 20).length;
+});
+
+const trainingNarrative = computed(() => {
+  const avgMin = props.summary.averageTrainingMinutes;
+  const days = trainingActiveDays.value;
+  const total = props.summary.series.length;
+  if (avgMin >= 35 && days >= total * 0.5) return "训练强度和频次都处于较好水平，执行纪律值得肯定，适合继续维持或微调训练量。";
+  if (avgMin >= 20) return "训练量处于中等水平，仍有提升空间，可以尝试逐步增加单次训练时长或强度。";
+  return "训练量偏低，建议每周至少安排 3-4 次中等强度训练，以提高基础代谢和消耗能力。";
+});
+
+// 达标统计 caption
+const recoveryCaption = computed(() => {
+  const items = props.summary.recoveryBreakdown;
+  const sleep = items[0];
+  if (sleep && sleep.value >= Math.round(props.summary.series.length * 0.65)) {
+    return "恢复指标整体达标率较高，睡眠和步数维持稳定，训练活跃度良好。";
+  }
+  return "恢复端仍有波动，优先保障睡眠连续性，再逐步提升步数和训练天数的覆盖。";
+});
+
+const behaviorCaption = computed(() => {
+  const gap = props.summary.averageCalorieGap;
+  if (gap <= 500) return "摄入与消耗结构健康，热量差处于安全区间，当前饮食-运动配比可持续。";
+  if (gap <= 1500) return "热量差偏中性，若想加速推进可以适当增加有氧消耗或微调餐次分配。";
+  return "热量差偏大，建议从饮食端入手——降低精加工食物占比，增加高饱腹感的蛋白和蔬菜。";
+});
+
+// 饮食达标 breakdown
+const dietBreakdown = computed(() => {
+  const series = props.summary.series;
+  const avgIntake = dietAvgIntake.value;
+  const controlledDays = series.filter((p) => p.calorieIntake <= avgIntake).length;
+  const highCalorieDays = series.filter((p) => p.calorieIntake > avgIntake + 300).length;
+  return [
+    { label: "控量达标天数", value: controlledDays, unit: `/${series.length} 天`, tone: controlledDays >= series.length * 0.6 ? "positive" as const : "warning" as const },
+    { label: "超标天数", value: highCalorieDays, unit: `/${series.length} 天`, tone: highCalorieDays <= 3 ? "positive" as const : "warning" as const }
+  ];
+});
+
+const dietBreakdownMax = computed(() => props.summary.series.length || 1);
+
+// 训练达标 breakdown
+const trainingBreakdown = computed(() => {
+  const series = props.summary.series;
+  const intenseDays = series.filter((p) => p.trainingMinutes >= 35).length;
+  const lightDays = series.filter((p) => p.trainingMinutes >= 15 && p.trainingMinutes < 35).length;
+  const restDays = series.filter((p) => p.trainingMinutes < 15).length;
+  return [
+    { label: "高强度训练天数", value: intenseDays, unit: `/${series.length} 天`, tone: intenseDays >= 5 ? "positive" as const : "neutral" as const },
+    { label: "轻度训练天数", value: lightDays, unit: `/${series.length} 天`, tone: "neutral" as const },
+    { label: "休息天数", value: restDays, unit: `/${series.length} 天`, tone: restDays <= series.length * 0.4 ? "positive" as const : "warning" as const }
+  ];
+});
+
+const trainingBreakdownMax = computed(() => props.summary.series.length || 1);
+
+// 饮食洞察
+const dietInsights = computed(() => {
+  const series = props.summary.series;
+  const highDays = series.filter((p) => p.calorieIntake > dietAvgIntake.value + 300).length;
+  const gap = props.summary.averageCalorieGap;
+  const results: { title: string; detail: string; tone: "positive" | "warning" | "neutral" }[] = [];
+
+  if (gap <= 500) {
+    results.push({ title: "热量控制节奏稳定", detail: `日均热量差 ${gap} kcal，摄入与消耗配比合理，有利于持续减脂。`, tone: "positive" });
+  } else if (gap <= 1500) {
+    results.push({ title: "热量差略偏高", detail: `日均热量差 ${gap} kcal，建议关注晚间进食量和加餐频率，适当收紧摄入。`, tone: "warning" });
+  } else {
+    results.push({ title: "热量差明显偏大", detail: `日均热量差高达 ${gap} kcal，需要从饮食结构入手，优先减少高热量密度食物。`, tone: "warning" });
+  }
+
+  if (highDays <= 3) {
+    results.push({ title: "摄入波动可控", detail: `21 天内仅有 ${highDays} 天摄入明显偏高，整体饮食纪律较好。`, tone: "positive" });
+  } else {
+    results.push({ title: "摄入波动偏大", detail: `有 ${highDays} 天摄入超过均值 300+ kcal，建议建立更规律的用餐节奏。`, tone: "neutral" });
+  }
+
+  return results;
+});
+
+// 训练洞察
+const trainingInsights = computed(() => {
+  const series = props.summary.series;
+  const days = trainingActiveDays.value;
+  const avgMin = props.summary.averageTrainingMinutes;
+  const avgSteps = props.summary.averageSteps;
+  const results: { title: string; detail: string; tone: "positive" | "warning" | "neutral" }[] = [];
+
+  if (days >= series.length * 0.5 && avgMin >= 25) {
+    results.push({ title: "训练执行力扎实", detail: `${days} 天训练活跃、日均 ${avgMin} 分钟，执行力已形成稳定节律。`, tone: "positive" });
+  } else {
+    results.push({ title: "训练频次有提升空间", detail: `活跃天数 ${days}/${series.length}，建议固定每周训练日程，减少随机性。`, tone: "neutral" });
+  }
+
+  if (avgSteps >= 10000) {
+    results.push({ title: "日常活动量充足", detail: `日均 ${avgSteps} 步，非训练时段的活动基础也很扎实。`, tone: "positive" });
+  } else if (avgSteps >= 8000) {
+    results.push({ title: "日常活动量达标", detail: `日均 ${avgSteps} 步，处于健康区间，可以尝试小幅提升。`, tone: "neutral" });
+  } else {
+    results.push({ title: "日常活动量偏低", detail: `日均仅 ${avgSteps} 步，建议增加步行通勤或餐后散步来补足基础活动量。`, tone: "warning" });
+  }
+
+  return results;
+});
+
 const dailyPulse = computed(() => {
   const record = selectedRecord.value;
 
@@ -196,9 +354,9 @@ const dailyPulse = computed(() => {
 
 // SVG line chart constants
 const SVG_PADDING_X = 40;
-const SVG_PADDING_TOP = 24;
+const SVG_PADDING_TOP = 40;
 const SVG_PADDING_BOTTOM = 40;
-const SVG_HEIGHT = 280;
+const SVG_HEIGHT = 300;
 const SVG_WIDTH = 760;
 
 const svgPoints = computed(() => {
@@ -229,6 +387,24 @@ function formatDate(value: string) {
   }).format(new Date(`${value}T00:00:00`));
 }
 
+function exportToExcel() {
+  const data = filteredRecords.value.map((item) => ({
+    "日期": item.date,
+    "体重(kg)": item.weightKg,
+    "体脂率(%)": item.bodyFatRate,
+    "腰围(cm)": item.waistCm,
+    "睡眠(h)": item.sleepHours,
+    "步数": item.steps,
+    "训练(分钟)": item.trainingMinutes,
+    "热量差(kcal)": item.calorieGap,
+    "状态": item.status
+  }));
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "每日记录");
+  XLSX.writeFile(workbook, `LightBalance_趋势记录_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
 function formatSigned(value: number, unit: string, digits = 1) {
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${value.toFixed(digits)} ${unit}`;
@@ -244,7 +420,8 @@ function describeDeviation(value: number) {
     return "接近阶段均值";
   }
 
-  const absValue = activeMetric.value === "steps" ? Math.round(Math.abs(value)) : Math.abs(value).toFixed(1);
+  const integerMetrics = ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"];
+  const absValue = integerMetrics.includes(activeMetric.value) ? Math.round(Math.abs(value)) : Math.abs(value).toFixed(1);
   const unit = metricMeta[activeMetric.value].unit;
   return value > 0 ? `高于均值 ${absValue} ${unit}` : `低于均值 ${absValue} ${unit}`;
 }
@@ -271,7 +448,7 @@ const svgYTicks = computed(() => {
     const ratio = i / 3;
     const y = SVG_PADDING_TOP + chartHeight - ratio * chartHeight;
     const value = range.min + ratio * range.spread;
-    const label = activeMetric.value === "steps" ? Math.round(value).toString() : value.toFixed(1);
+    const label = ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric.value) ? Math.round(value).toString() : value.toFixed(1);
     ticks.push({ y, label });
   }
   return ticks;
@@ -289,7 +466,7 @@ const svgYTicks = computed(() => {
       </div>
 
       <div class="metric-cards">
-        <article v-for="card in summary.metricCards" :key="card.label" class="metric-card" :data-tone="card.tone">
+        <article v-for="card in overviewMetricCards" :key="card.label" class="metric-card" :data-tone="card.tone">
           <span>{{ card.label }}</span>
           <strong>{{ card.value }}</strong>
           <em>{{ card.change }}</em>
@@ -310,10 +487,58 @@ const svgYTicks = computed(() => {
           <span>完成度</span>
           <strong>{{ summary.completionRate }}%</strong>
         </div>
-        <div class="meta-item">
-          <span>日均训练</span>
-          <strong>{{ summary.averageTrainingMinutes }} 分钟</strong>
-        </div>
+      </div>
+
+      <!-- 饮食 & 训练概要 -->
+      <div class="overview-bar__digest">
+        <article class="digest-card">
+          <div class="digest-card__header">
+            <span class="digest-card__icon">&#x1F35D;</span>
+            <div>
+              <h5>饮食情况</h5>
+            </div>
+          </div>
+          <p class="digest-card__narrative">{{ dietNarrative }}</p>
+          <div class="digest-card__stats">
+            <div class="digest-stat">
+              <span>日均摄入</span>
+              <strong>{{ dietAvgIntake }} kcal</strong>
+            </div>
+            <div class="digest-stat">
+              <span>日均消耗</span>
+              <strong>{{ dietAvgBurned }} kcal</strong>
+            </div>
+            <div class="digest-stat">
+              <span>日均热量差</span>
+              <strong :class="summary.averageCalorieGap <= 0 ? 'digest-stat--positive' : 'digest-stat--warning'">
+                {{ summary.averageCalorieGap > 0 ? '+' : '' }}{{ summary.averageCalorieGap }} kcal
+              </strong>
+            </div>
+          </div>
+        </article>
+        <article class="digest-card">
+          <div class="digest-card__header">
+            <span class="digest-card__icon">&#x1F3CB;</span>
+            <div>
+              <h5>训练情况</h5>
+            </div>
+          </div>
+          <p class="digest-card__narrative">{{ trainingNarrative }}</p>
+          <div class="digest-card__stats">
+            <div class="digest-stat">
+              <span>日均训练</span>
+              <strong>{{ summary.averageTrainingMinutes }} 分钟</strong>
+            </div>
+            <div class="digest-stat">
+              <span>训练活跃天数</span>
+              <strong>{{ trainingActiveDays }}/{{ summary.series.length }} 天</strong>
+            </div>
+            <div class="digest-stat">
+              <span>日均步数</span>
+              <strong>{{ summary.averageSteps }}</strong>
+            </div>
+          </div>
+        </article>
       </div>
     </article>
 
@@ -347,7 +572,7 @@ const svgYTicks = computed(() => {
             <strong>{{ metricHeadline }}</strong>
             <small>
               {{
-                activeMetric === "steps"
+                ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric)
                   ? formatIntegerSigned(metricChange, metricMeta[activeMetric].unit)
                   : formatSigned(metricChange, metricMeta[activeMetric].unit)
               }}
@@ -357,7 +582,7 @@ const svgYTicks = computed(() => {
           <div class="chart-hero__stat">
             <span>阶段均值</span>
             <strong>{{ metricMeta[activeMetric].formatter(metricAverage) }}</strong>
-            <small>区间 {{ metricRange.min.toFixed(1) }} - {{ metricRange.max.toFixed(1) }} {{ metricMeta[activeMetric].unit }}</small>
+            <small>区间 {{ ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric) ? Math.round(metricRange.min) : metricRange.min.toFixed(1) }} - {{ ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric) ? Math.round(metricRange.max) : metricRange.max.toFixed(1) }} {{ metricMeta[activeMetric].unit }}</small>
           </div>
         </div>
 
@@ -445,7 +670,7 @@ const svgYTicks = computed(() => {
                   class="svg-tooltip-text"
                   text-anchor="middle"
                 >
-                  {{ activeMetric === "steps" ? Math.round(dot.value) : dot.value.toFixed(1) }}
+                  {{ ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric) ? Math.round(dot.value) : dot.value.toFixed(1) }}
                 </text>
               </g>
 
@@ -496,7 +721,7 @@ const svgYTicks = computed(() => {
           <div class="snapshot__meta">
             <span class="snapshot__status">{{ selectedRecord.status }}</span>
             <p>
-              热量差 {{ selectedRecord.calorieGap }} kcal，训练 {{ selectedRecord.trainingMinutes }} 分钟，步数
+              热量差 {{ selectedRecord.calorieGap }} kcal（摄入 − 运动消耗 − 基础代谢），训练 {{ selectedRecord.trainingMinutes }} 分钟，步数
               {{ selectedRecord.steps }}，睡眠 {{ selectedRecord.sleepHours }} 小时。
             </p>
           </div>
@@ -535,6 +760,17 @@ const svgYTicks = computed(() => {
               </div>
               <strong>{{ selectedRecord.trainingMinutes }} 分钟</strong>
             </div>
+            <div class="snapshot__bar-row">
+              <span>热量差</span>
+              <div class="snapshot__bar-rail">
+                <span
+                  class="snapshot__bar-fill"
+                  :class="selectedRecord.calorieGap >= 0 ? 'snapshot__bar-fill--positive' : 'snapshot__bar-fill--negative'"
+                  :style="{ width: `${Math.min(Math.abs(selectedRecord.calorieGap) / 500, 1) * 100}%` }"
+                ></span>
+              </div>
+              <strong>{{ selectedRecord.calorieGap }} kcal</strong>
+            </div>
           </div>
         </div>
 
@@ -567,6 +803,7 @@ const svgYTicks = computed(() => {
               <span class="breakdown-row__fill" :style="{ width: `${(item.value / recoveryMax) * 100}%` }"></span>
             </div>
           </article>
+          <p class="breakdown-caption">{{ recoveryCaption }}</p>
         </div>
 
         <div class="breakdown-group">
@@ -583,74 +820,135 @@ const svgYTicks = computed(() => {
               <span class="breakdown-row__fill breakdown-row__fill--warm" :style="{ width: `${(item.value / behaviorMax) * 100}%` }"></span>
             </div>
           </article>
+          <p class="breakdown-caption">{{ behaviorCaption }}</p>
+        </div>
+
+        <!-- 饮食达标详情 -->
+        <div class="breakdown-group">
+          <header>
+            <span>饮食达标</span>
+            <strong>热量摄入控制与营养结构分析</strong>
+          </header>
+          <p class="breakdown-criterion">达标标准：日均摄入 ≤ {{ dietAvgIntake }} kcal 为达标，> {{ dietAvgIntake + 300 }} kcal 为超标</p>
+          <article v-for="item in dietBreakdown" :key="item.label" class="breakdown-row breakdown-row--warm" :data-tone="item.tone">
+            <div class="breakdown-row__head">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }} {{ item.unit }}</strong>
+            </div>
+            <div class="breakdown-row__rail">
+              <span class="breakdown-row__fill breakdown-row__fill--warm" :style="{ width: `${(item.value / dietBreakdownMax) * 100}%` }"></span>
+            </div>
+          </article>
+        </div>
+
+        <!-- 训练达标详情 -->
+        <div class="breakdown-group">
+          <header>
+            <span>训练达标</span>
+            <strong>训练频次与消耗量的阶段表现</strong>
+          </header>
+          <p class="breakdown-criterion">达标标准：≥ 35 分钟为高强度训练，15 ~ 35 分钟为轻度训练，< 15 分钟为休息日</p>
+          <article v-for="item in trainingBreakdown" :key="item.label" class="breakdown-row" :data-tone="item.tone">
+            <div class="breakdown-row__head">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }} {{ item.unit }}</strong>
+            </div>
+            <div class="breakdown-row__rail">
+              <span class="breakdown-row__fill" :style="{ width: `${(item.value / trainingBreakdownMax) * 100}%` }"></span>
+            </div>
+          </article>
         </div>
       </article>
 
-      <!-- 右侧：洞察 + 记录列表 -->
-      <div class="side-stack">
-        <!-- 趋势洞察 -->
-        <article class="insights-card">
-          <div class="insights-card__header">
-            <p class="insights-card__eyebrow">Insights</p>
-            <h4>趋势洞察</h4>
-          </div>
+      <!-- 右侧：趋势洞察 -->
+      <article class="insights-card">
+        <div class="insights-card__header">
+          <p class="insights-card__eyebrow">Insights</p>
+          <h4>趋势洞察</h4>
+        </div>
 
+        <div class="insight-stack">
+          <article v-for="item in summary.insights" :key="item.title" class="insight-item" :data-tone="item.tone">
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.detail }}</p>
+          </article>
+        </div>
+
+        <!-- 饮食洞察 -->
+        <div class="insight-section">
+          <p class="insight-section__eyebrow">Diet Insights</p>
+          <h5>饮食洞察</h5>
           <div class="insight-stack">
-            <article v-for="item in summary.insights" :key="item.title" class="insight-item" :data-tone="item.tone">
+            <article v-for="item in dietInsights" :key="item.title" class="insight-item" :data-tone="item.tone">
               <strong>{{ item.title }}</strong>
               <p>{{ item.detail }}</p>
             </article>
           </div>
-        </article>
+        </div>
 
-        <!-- 记录列表 -->
-        <article class="records-card">
-          <div class="records-card__header">
-            <div>
-              <p class="records-card__eyebrow">Records</p>
-              <h4>每日记录</h4>
-            </div>
-            <div class="status-pills">
-              <button
-                v-for="status in statuses"
-                :key="status"
-                type="button"
-                class="status-pill"
-                :class="{ 'status-pill--active': status === activeStatus }"
-                @click="activeStatus = status"
-              >
-                {{ status }}
-              </button>
-            </div>
+        <!-- 训练洞察 -->
+        <div class="insight-section">
+          <p class="insight-section__eyebrow">Training Insights</p>
+          <h5>训练洞察</h5>
+          <div class="insight-stack">
+            <article v-for="item in trainingInsights" :key="item.title" class="insight-item" :data-tone="item.tone">
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.detail }}</p>
+            </article>
           </div>
-
-          <div class="record-list">
-            <button
-              v-for="item in filteredRecords"
-              :key="item.date"
-              type="button"
-              class="record-row"
-              :class="{ 'record-row--active': item.date === selectedDate }"
-              @click="selectPoint(item)"
-            >
-              <div class="record-row__date">
-                <span>{{ formatDate(item.date) }}</span>
-                <strong>{{ item.status }}</strong>
-              </div>
-              <div class="record-row__metrics">
-                <span>体重 {{ item.weightKg }} kg</span>
-                <span>体脂 {{ item.bodyFatRate }}%</span>
-                <span>腰围 {{ item.waistCm }} cm</span>
-                <span>睡眠 {{ item.sleepHours }} h</span>
-                <span>步数 {{ item.steps }}</span>
-                <span>训练 {{ item.trainingMinutes }} 分钟</span>
-                <span>热量差 {{ item.calorieGap }} kcal</span>
-              </div>
-            </button>
-          </div>
-        </article>
-      </div>
+        </div>
+      </article>
     </section>
+
+    <!-- Section D: 每日记录 -->
+    <article class="records-card">
+      <div class="records-card__header">
+        <div>
+          <p class="records-card__eyebrow">Records</p>
+          <h4>每日记录</h4>
+        </div>
+        <div class="records-card__actions">
+          <button type="button" class="records-card__export" @click="exportToExcel">📥 导出 Excel</button>
+          <div class="status-pills">
+          <button
+            v-for="status in statuses"
+            :key="status"
+            type="button"
+            class="status-pill"
+            :class="{ 'status-pill--active': status === activeStatus }"
+            @click="activeStatus = status"
+          >
+            {{ status }}
+          </button>
+        </div>
+        </div>
+      </div>
+
+      <div class="record-list">
+        <button
+          v-for="item in filteredRecords"
+          :key="item.date"
+          type="button"
+          class="record-row"
+          :class="{ 'record-row--active': item.date === selectedDate }"
+          @click="selectPoint(item)"
+        >
+          <div class="record-row__date">
+            <span>{{ formatDate(item.date) }}</span>
+            <strong>{{ item.status }}</strong>
+          </div>
+          <div class="record-row__metrics">
+            <span>体重 {{ item.weightKg }} kg</span>
+            <span>体脂 {{ item.bodyFatRate }}%</span>
+            <span>腰围 {{ item.waistCm }} cm</span>
+            <span>睡眠 {{ item.sleepHours }} h</span>
+            <span>步数 {{ item.steps }}</span>
+            <span>训练 {{ item.trainingMinutes }} 分钟</span>
+            <span>热量差 {{ item.calorieGap }} kcal</span>
+          </div>
+        </button>
+      </div>
+    </article>
   </section>
 </template>
 
@@ -690,6 +988,10 @@ const svgYTicks = computed(() => {
 /* ===== Section A: 顶部概览 ===== */
 .overview-bar {
   padding: 28px;
+  background:
+    radial-gradient(circle at 85% 18%, rgba(115, 174, 113, 0.14), transparent 26%),
+    radial-gradient(circle at 12% 80%, rgba(255, 205, 107, 0.12), transparent 24%),
+    rgba(255, 252, 246, 0.96);
 }
 
 .overview-bar__header h3 {
@@ -707,7 +1009,7 @@ const svgYTicks = computed(() => {
 
 .metric-cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin-top: 20px;
 }
@@ -752,7 +1054,7 @@ const svgYTicks = computed(() => {
 
 .overview-bar__meta {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 18px;
 }
@@ -860,7 +1162,7 @@ const svgYTicks = computed(() => {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.5);
   padding: 8px 4px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .svg-chart__svg {
@@ -1086,6 +1388,22 @@ const svgYTicks = computed(() => {
   background: linear-gradient(90deg, #d9782f, #f0be62);
 }
 
+.snapshot__bar-fill--positive {
+  background: linear-gradient(90deg, #2f6b55, #6aa46b);
+}
+
+.snapshot__bar-fill--negative {
+  background: linear-gradient(90deg, #c0392b, #e67e22);
+}
+
+.snapshot__formula {
+  margin: 2px 0 0;
+  color: var(--color-text-soft);
+  font-size: 0.75rem;
+  text-align: right;
+  opacity: 0.75;
+}
+
 .snapshot--empty {
   margin-top: 18px;
   padding: 40px;
@@ -1188,14 +1506,11 @@ const svgYTicks = computed(() => {
   background: linear-gradient(90deg, #d9782f, #f0be62);
 }
 
-.side-stack {
-  display: grid;
-  gap: 18px;
-  align-content: start;
-}
-
 .insights-card {
   padding: 24px;
+  background:
+    radial-gradient(circle at right bottom, rgba(162, 120, 210, 0.09), transparent 24%),
+    rgba(255, 252, 246, 0.96);
 }
 
 .insights-card__header h4 {
@@ -1236,9 +1551,131 @@ const svgYTicks = computed(() => {
   border-color: rgba(217, 120, 47, 0.22);
 }
 
+/* 饮食 & 训练概要 digest */
+.overview-bar__digest {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.digest-card {
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(57, 87, 63, 0.06);
+}
+
+.digest-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.digest-card__icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.digest-card__eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+}
+
+.digest-card h5 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--color-text);
+}
+
+.digest-card__narrative {
+  margin: 12px 0 0;
+  color: var(--color-text-soft);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.digest-card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.digest-stat {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.digest-stat span {
+  color: var(--color-text-soft);
+  font-size: 0.78rem;
+}
+
+.digest-stat strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+
+.digest-stat--positive {
+  color: #225c49;
+}
+
+.digest-stat--warning {
+  color: #af6f2b;
+}
+
+/* 达标 caption */
+.breakdown-caption {
+  margin: 14px 0 0;
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+.breakdown-criterion {
+  margin: 8px 0 4px;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  background: rgba(57, 87, 63, 0.05);
+  border-radius: 6px;
+}
+
+/* 洞察子区域 */
+.insight-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(57, 87, 63, 0.08);
+}
+
+.insight-section__eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+}
+
+.insight-section h5 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  color: var(--color-text);
+}
+
 /* 记录列表 */
 .records-card {
   padding: 24px;
+  background:
+    radial-gradient(circle at left top, rgba(75, 149, 240, 0.08), transparent 22%),
+    rgba(255, 252, 246, 0.96);
 }
 
 .records-card__header {
@@ -1252,6 +1689,31 @@ const svgYTicks = computed(() => {
   margin: 0;
   color: var(--color-text);
   font-size: 1.2rem;
+}
+
+.records-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.records-card__export {
+  border: 1px solid rgba(57, 87, 63, 0.18);
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: rgba(57, 87, 63, 0.06);
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.records-card__export:hover {
+  background: rgba(57, 87, 63, 0.12);
+  box-shadow: 0 2px 8px rgba(57, 87, 63, 0.15);
+  transform: translateY(-1px);
 }
 
 .status-pills {
@@ -1336,6 +1798,10 @@ const svgYTicks = computed(() => {
   .overview-bar__meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .overview-bar__digest {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 780px) {
@@ -1354,6 +1820,8 @@ const svgYTicks = computed(() => {
 
   .metric-cards,
   .overview-bar__meta,
+  .overview-bar__digest,
+  .digest-card__stats,
   .chart-hero,
   .snapshot__metrics,
   .record-row,

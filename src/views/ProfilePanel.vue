@@ -169,22 +169,16 @@ function handleSavePassword() {
 <template>
   <section class="profile-panel">
     <div class="profile-panel__header">
-      <div>
-        <p class="profile-panel__eyebrow">User Center</p>
-        <h3>{{ title }}</h3>
-        <p>{{ description }}</p>
+      <div class="profile-panel__header-left">
+        <div class="identity-card__avatar">{{ nickname.slice(0, 1).toUpperCase() }}</div>
+        <div>
+          <p class="profile-panel__eyebrow">User Center</p>
+          <h3>{{ title }}</h3>
+          <p class="profile-panel__desc">{{ profile?.nickname ?? nickname }} · @{{ username }} · {{ profile?.email ?? "未绑定邮箱" }}</p>
+        </div>
       </div>
 
-      <button class="profile-panel__close" type="button" @click="$emit('close')">返回</button>
-    </div>
-
-    <div class="profile-grid">
-      <article class="identity-card">
-        <div class="identity-card__avatar">{{ nickname.slice(0, 1).toUpperCase() }}</div>
-        <strong>{{ profile?.nickname ?? nickname }}</strong>
-        <span>@{{ username }}</span>
-        <small>{{ profile?.email ?? "未绑定邮箱" }}</small>
-
+      <div class="profile-panel__header-right">
         <div v-if="mode === 'profile' && profile" class="identity-card__stats">
           <div class="stat-item">
             <span>BMI</span>
@@ -195,9 +189,11 @@ function handleSavePassword() {
             <strong>{{ bmrDisplay }}</strong>
           </div>
         </div>
-      </article>
+        <button class="profile-panel__close" type="button" @click="$emit('close')">返回</button>
+      </div>
+    </div>
 
-      <div class="profile-content">
+    <div class="profile-content">
         <template v-if="mode === 'profile'">
           <div v-if="loading" class="profile-loading">
             <span></span>
@@ -207,8 +203,8 @@ function handleSavePassword() {
 
           <template v-else>
             <!-- 基本信息 -->
-            <article class="section-card">
-              <p class="section-card__title">基本信息</p>
+            <article class="section-card section-card--basic">
+              <p class="section-card__title">&#x1F464; 基本信息</p>
 
               <div class="profile-fields profile-fields--two">
                 <label class="profile-field">
@@ -267,8 +263,8 @@ function handleSavePassword() {
             </article>
 
             <!-- 目标设定 -->
-            <article class="section-card">
-              <p class="section-card__title">目标设定</p>
+            <article class="section-card section-card--goal">
+              <p class="section-card__title">&#x1F3AF; 目标设定</p>
 
               <div class="profile-fields profile-fields--three">
                 <label class="profile-field">
@@ -301,8 +297,8 @@ function handleSavePassword() {
             </article>
 
             <!-- 生活方式 -->
-            <article class="section-card">
-              <p class="section-card__title">生活方式</p>
+            <article class="section-card section-card--lifestyle">
+              <p class="section-card__title">&#x1F3E0; 生活方式</p>
 
               <div class="profile-fields profile-fields--four">
                 <label class="profile-field">
@@ -345,8 +341,8 @@ function handleSavePassword() {
             </article>
 
             <!-- 习惯记录 -->
-            <article class="section-card">
-              <p class="section-card__title">习惯记录</p>
+            <article class="section-card section-card--habit">
+              <p class="section-card__title">&#x1F4DD; 习惯记录</p>
 
               <label class="profile-field">
                 <span>睡眠习惯</span>
@@ -362,41 +358,43 @@ function handleSavePassword() {
                 <span>运动习惯</span>
                 <textarea v-model.trim="form.habitExercise" rows="2" placeholder="例如：每周力量训练 3 次"></textarea>
               </label>
-            </article>
 
-            <button class="profile-save" type="button" :disabled="saving" @click="handleSave">
-              {{ saving ? "保存中..." : "保存全部资料" }}
-            </button>
+              <div class="section-card__actions">
+                <button class="profile-save" type="button" :disabled="saving" @click="handleSave">
+                  {{ saving ? "保存中..." : "保存全部资料" }}
+                </button>
+              </div>
+            </article>
           </template>
         </template>
 
         <template v-else>
           <!-- 账号信息 -->
-          <article class="section-card">
-            <p class="section-card__title">账号信息</p>
+          <article class="section-card section-card--account">
+            <p class="section-card__title">&#x1F511; 账号信息</p>
             <div class="account-info">
               <div class="info-row">
-                <span>用户 ID</span>
+                <span>&#x1F194; 用户 ID</span>
                 <strong>{{ profile?.userId ?? "--" }}</strong>
               </div>
               <div class="info-row">
-                <span>用户名</span>
+                <span>&#x1F464; 用户名</span>
                 <strong>@{{ username }}</strong>
               </div>
               <div class="info-row">
-                <span>昵称</span>
+                <span>&#x1F4AC; 昵称</span>
                 <strong>{{ profile?.nickname ?? nickname }}</strong>
               </div>
               <div class="info-row">
-                <span>邮箱</span>
+                <span>&#x2709; 邮箱</span>
                 <strong>{{ profile?.email ?? "未绑定" }}</strong>
               </div>
             </div>
           </article>
 
           <!-- 邮箱修改 -->
-          <article class="section-card">
-            <p class="section-card__title">修改邮箱</p>
+          <article class="section-card section-card--email">
+            <p class="section-card__title">&#x2709; 修改邮箱</p>
             <div class="profile-fields profile-fields--two">
               <label class="profile-field">
                 <span>新邮箱地址</span>
@@ -411,8 +409,8 @@ function handleSavePassword() {
           </article>
 
           <!-- 密码修改 -->
-          <article class="section-card">
-            <p class="section-card__title">修改密码</p>
+          <article class="section-card section-card--password">
+            <p class="section-card__title">&#x1F512; 修改密码</p>
 
             <div class="profile-fields profile-fields--three">
               <label class="profile-field">
@@ -436,10 +434,16 @@ function handleSavePassword() {
             </button>
           </article>
 
-          <button class="profile-logout" type="button" @click="$emit('logout')">退出登录</button>
+          <!-- 退出登录 -->
+          <article class="section-card section-card--danger">
+            <p class="section-card__title">&#x1F6AA; 账号操作</p>
+            <p class="section-card__hint">退出登录后将返回登录页面，需要重新输入账号密码。</p>
+            <div class="section-card__actions">
+              <button class="profile-logout" type="button" @click="$emit('logout')">退出登录</button>
+            </div>
+          </article>
         </template>
       </div>
-    </div>
   </section>
 </template>
 
@@ -447,22 +451,55 @@ function handleSavePassword() {
 .profile-panel {
   display: grid;
   gap: 18px;
+  padding-right: 18px;
 }
 
 .profile-panel__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 22px;
+  padding: 24px 28px;
   border-radius: 24px;
-  background: rgba(255, 252, 246, 0.92);
+  background:
+    radial-gradient(circle at 88% 14%, rgba(255, 205, 107, 0.22), transparent 28%),
+    radial-gradient(circle at 10% 80%, rgba(115, 174, 113, 0.14), transparent 30%),
+    rgba(255, 252, 246, 0.96);
   border: 1px solid rgba(57, 87, 63, 0.12);
   box-shadow: 0 16px 40px rgba(30, 44, 37, 0.08);
 }
 
+.profile-panel__header-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.profile-panel__header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.identity-card__avatar {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #1a2e22, #3d6b4a, #5a9a6a);
+  color: #f8f4ea;
+  font-size: 1.6rem;
+  font-weight: 800;
+  box-shadow:
+    0 4px 12px rgba(45, 100, 70, 0.25),
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
 .profile-panel__eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   font-size: 0.78rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -471,91 +508,57 @@ function handleSavePassword() {
 
 .profile-panel__header h3 {
   margin: 0;
-  font-size: 2rem;
-  color: var(--color-text);
-}
-
-.profile-panel__header p {
-  margin: 10px 0 0;
-  color: var(--color-text-soft);
-}
-
-.profile-panel__close {
-  border: 0;
-  border-radius: 14px;
-  padding: 12px 16px;
-  background: rgba(34, 52, 42, 0.08);
-  color: #284033;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.profile-grid {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 18px;
-}
-
-.identity-card,
-.section-card {
-  padding: 22px;
-  border-radius: 24px;
-  background: rgba(255, 252, 246, 0.92);
-  border: 1px solid rgba(57, 87, 63, 0.12);
-  box-shadow: 0 16px 40px rgba(30, 44, 37, 0.08);
-}
-
-.identity-card {
-  display: grid;
-  gap: 10px;
-  align-content: start;
-  height: fit-content;
-}
-
-.identity-card__avatar {
-  width: 72px;
-  height: 72px;
-  display: grid;
-  place-items: center;
-  border-radius: 22px;
-  background: linear-gradient(135deg, #294033, #4d6b55);
-  color: #f8f4ea;
-  font-size: 2rem;
-  font-weight: 800;
-}
-
-.identity-card strong {
   font-size: 1.5rem;
   color: var(--color-text);
 }
 
-.identity-card span,
-.identity-card small {
+.profile-panel__desc {
+  margin: 4px 0 0;
   color: var(--color-text-soft);
+  font-size: 0.88rem;
 }
 
 .identity-card__stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 8px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(57, 87, 63, 0.1);
+  display: flex;
+  gap: 18px;
 }
 
 .stat-item {
   display: grid;
-  gap: 4px;
+  gap: 2px;
+  text-align: center;
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: rgba(45, 100, 70, 0.06);
+  min-width: 72px;
 }
 
 .stat-item span {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: var(--color-text-soft);
 }
 
 .stat-item strong {
   font-size: 1.2rem;
   color: var(--color-text);
+}
+
+.profile-panel__close {
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 16px;
+  background: rgba(34, 52, 42, 0.08);
+  color: #284033;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.profile-panel__close:hover {
+  background: rgba(34, 52, 42, 0.14);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(30, 44, 37, 0.1);
 }
 
 .profile-content {
@@ -565,8 +568,81 @@ function handleSavePassword() {
 }
 
 .section-card {
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.92);
+  border: 1px solid rgba(57, 87, 63, 0.12);
+  box-shadow: 0 16px 40px rgba(30, 44, 37, 0.08);
   display: grid;
   gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.section-card::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+}
+
+.section-card--basic::before {
+  background: linear-gradient(180deg, #2d896e, #5a9a6a);
+}
+
+.section-card--goal::before {
+  background: linear-gradient(180deg, #d4874d, #f0a060);
+}
+
+.section-card--lifestyle::before {
+  background: linear-gradient(180deg, #5a6ef0, #8090ff);
+}
+
+.section-card--habit::before {
+  background: linear-gradient(180deg, #8a5cb8, #b088d0);
+}
+
+.section-card--account::before {
+  background: linear-gradient(180deg, #2d896e, #5a9a6a);
+}
+
+.section-card--email::before {
+  background: linear-gradient(180deg, #5a6ef0, #8090ff);
+}
+
+.section-card--password::before {
+  background: linear-gradient(180deg, #d4874d, #f0a060);
+}
+
+.section-card--danger::before {
+  background: linear-gradient(180deg, #a14d3b, #c46955);
+}
+
+.section-card:nth-of-type(1) {
+  background:
+    radial-gradient(circle at right top, rgba(45, 137, 110, 0.08), transparent 24%),
+    rgba(255, 252, 246, 0.96);
+}
+
+.section-card:nth-of-type(2) {
+  background:
+    radial-gradient(circle at left top, rgba(240, 149, 75, 0.09), transparent 22%),
+    rgba(255, 252, 246, 0.96);
+}
+
+.section-card:nth-of-type(3) {
+  background:
+    radial-gradient(circle at center top, rgba(102, 128, 255, 0.08), transparent 22%),
+    rgba(255, 252, 246, 0.96);
+}
+
+.section-card:nth-of-type(4) {
+  background:
+    radial-gradient(circle at right bottom, rgba(162, 120, 210, 0.08), transparent 24%),
+    rgba(255, 252, 246, 0.96);
 }
 
 .section-card__title {
@@ -574,6 +650,28 @@ function handleSavePassword() {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-text);
+}
+
+.section-card__hint {
+  margin: 0;
+  color: var(--color-text-soft);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.section-card__actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 8px;
+  border-top: 1px solid rgba(57, 87, 63, 0.08);
+  margin-top: 4px;
+}
+
+.section-card--danger {
+  border-color: rgba(161, 77, 59, 0.15);
+  background:
+    radial-gradient(circle at left bottom, rgba(161, 77, 59, 0.07), transparent 24%),
+    rgba(255, 252, 246, 0.96);
 }
 
 .profile-fields {
@@ -614,11 +712,30 @@ function handleSavePassword() {
   color: var(--color-text);
   outline: none;
   resize: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-field input:focus,
+.profile-field select:focus,
+.profile-field textarea:focus {
+  border-color: rgba(45, 100, 70, 0.4);
+  box-shadow: 0 0 0 3px rgba(45, 100, 70, 0.08);
+}
+
+.profile-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' fill='none' stroke='%23506156' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
 }
 
 .profile-field--readonly input {
   color: var(--color-text-soft);
   background: rgba(246, 243, 235, 0.9);
+  border-left: 3px solid rgba(45, 100, 70, 0.25);
+  padding-left: 14px;
 }
 
 .field-action {
@@ -635,6 +752,13 @@ function handleSavePassword() {
   color: #fffaf0;
   font-weight: 700;
   cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.profile-save:hover:not(:disabled),
+.profile-logout:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(30, 44, 37, 0.18);
 }
 
 .profile-save {
@@ -647,7 +771,6 @@ function handleSavePassword() {
 }
 
 .profile-logout {
-  margin-top: 8px;
   background: linear-gradient(135deg, #6d3d2f, #a14d3b);
 }
 
@@ -699,14 +822,31 @@ function handleSavePassword() {
 }
 
 @media (max-width: 1180px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
+  .profile-panel {
+    padding-right: 0;
+  }
+
+  .profile-panel__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .profile-panel__header-right {
+    flex-wrap: wrap;
   }
 
   .profile-fields--two,
   .profile-fields--three,
   .profile-fields--four {
     grid-template-columns: 1fr;
+  }
+
+  .identity-card__stats {
+    gap: 10px;
+  }
+
+  .section-card {
+    padding: 18px;
   }
 }
 </style>

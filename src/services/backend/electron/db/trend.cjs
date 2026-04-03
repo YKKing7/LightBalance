@@ -244,10 +244,10 @@ function buildRecoveryBreakdown(rows, sleepTargetHours) {
         }
     ];
 }
-function buildBehaviorBreakdown(rows) {
+function buildBehaviorBreakdown(rows, bmr) {
     const avgIntake = Math.round(rows.reduce((sum, row) => sum + Number(row.calorie_intake), 0) / Math.max(rows.length, 1));
     const avgBurned = Math.round(rows.reduce((sum, row) => sum + Number(row.calorie_burned), 0) / Math.max(rows.length, 1));
-    const avgGap = Math.round(rows.reduce((sum, row) => sum + (Number(row.calorie_intake) - Number(row.calorie_burned)), 0) / Math.max(rows.length, 1));
+    const avgGap = Math.round(rows.reduce((sum, row) => sum + (Number(row.calorie_intake) - (Number(row.calorie_burned) + bmr)), 0) / Math.max(rows.length, 1));
     return [
         {
             label: "平均摄入",
@@ -312,13 +312,13 @@ function buildInsights(rows, profile) {
             }
     ];
 }
-function buildRecords(rows, targetWeight) {
+function buildRecords(rows, targetWeight, bmr) {
     return [...rows]
         .slice()
         .reverse()
         .map((row) => {
         const normalizedDate = normalizeSnapshotDate(row.snapshot_date);
-        const calorieGap = Number(row.calorie_intake) - Number(row.calorie_burned);
+        const calorieGap = Number(row.calorie_intake) - (Number(row.calorie_burned) + bmr);
         const weightGap = Number(row.weight_kg) - targetWeight;
         const status = Number(row.sleep_hours) >= 7.2 && Number(row.steps) >= 8500
             ? "恢复优"
@@ -361,15 +361,16 @@ async function getTrendSummary(userId) {
         if (!rows.length) {
             throw new Error("趋势数据暂不可用");
         }
+        const bmr = profile.bmr ?? (0, shared_cjs_1.calculateBmr)(profile);
         const latest = rows[rows.length - 1];
         const averageSleepHours = (0, shared_cjs_1.round)(rows.reduce((sum, row) => sum + Number(row.sleep_hours), 0) / rows.length, 1);
         const averageSteps = Math.round(rows.reduce((sum, row) => sum + Number(row.steps), 0) / rows.length);
         const averageTrainingMinutes = Math.round(rows.reduce((sum, row) => sum + Number(row.training_minutes), 0) / rows.length);
-        const averageCalorieGap = Math.round(rows.reduce((sum, row) => sum + (Number(row.calorie_intake) - Number(row.calorie_burned)), 0) / rows.length);
+        const averageCalorieGap = Math.round(rows.reduce((sum, row) => sum + (Number(row.calorie_intake) - (Number(row.calorie_burned) + bmr)), 0) / rows.length);
         const completionRate = Math.round((rows.reduce((sum, row) => {
             const sleepScore = Number(row.sleep_hours) >= profile.sleepTargetHours - 0.3 ? 1 : 0;
             const stepScore = Number(row.steps) >= 8000 ? 1 : 0;
-            const calorieScore = Number(row.calorie_intake) - Number(row.calorie_burned) <= 1750 ? 1 : 0;
+            const calorieScore = Number(row.calorie_intake) - (Number(row.calorie_burned) + bmr) <= 1750 ? 1 : 0;
             return sum + sleepScore + stepScore + calorieScore;
         }, 0) /
             (rows.length * 3)) *
@@ -400,12 +401,12 @@ async function getTrendSummary(userId) {
                 trainingMinutes: Number(row.training_minutes),
                 calorieIntake: Number(row.calorie_intake),
                 calorieBurned: Number(row.calorie_burned),
-                calorieGap: Number(row.calorie_intake) - Number(row.calorie_burned)
+                calorieGap: Number(row.calorie_intake) - (Number(row.calorie_burned) + bmr)
             })),
             recoveryBreakdown: buildRecoveryBreakdown(rows, profile.sleepTargetHours),
-            behaviorBreakdown: buildBehaviorBreakdown(rows),
+            behaviorBreakdown: buildBehaviorBreakdown(rows, bmr),
             insights: buildInsights(rows, profile),
-            records: buildRecords(rows, profile.targetWeightKg)
+            records: buildRecords(rows, profile.targetWeightKg, bmr)
         };
     }
     finally {

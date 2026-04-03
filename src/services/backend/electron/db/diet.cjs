@@ -126,7 +126,13 @@ async function ensureTodayDailyLog(connection, userId, logDate, waterTargetMl) {
         return rows[0];
     }
     const now = new Date();
-    const nextDailyId = await (0, shared_cjs_1.getNextTableId)(connection, "diet_daily_log", "daily_id", 50000);
+    let nextDailyId = await (0, shared_cjs_1.getNextTableId)(connection, "diet_daily_log", "daily_id", 50000);
+    // 防止并发导致主键冲突：如果 ID 已存在则递增重试
+    for (let attempt = 0; attempt < 10; attempt++) {
+        const [existing] = await connection.execute("SELECT 1 FROM diet_daily_log WHERE daily_id = ? LIMIT 1", [nextDailyId]);
+        if (!existing[0]) break;
+        nextDailyId++;
+    }
     await connection.execute(`INSERT INTO diet_daily_log
       (daily_id, user_id, log_date, water_intake_ml, water_target_ml, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`, [nextDailyId, userId, logDate, 0, waterTargetMl, now, now]);

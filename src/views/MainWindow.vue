@@ -418,7 +418,7 @@ async function handleCloseWindow() {
   height: 100vh;
   padding: 24px 18px;
   overflow-y: auto;
-  font-family: "KaiTi", "STKaiti", "Kaiti SC", serif;
+  font-family: "KaiTi", "STKaiti", "Kaiti SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei", serif;
   background:
     radial-gradient(circle at top left, rgba(255, 219, 152, 0.5), transparent 42%),
     linear-gradient(180deg, rgba(35, 48, 40, 0.98), rgba(18, 25, 22, 0.98));
@@ -479,7 +479,7 @@ async function handleCloseWindow() {
 
 .brand h1 {
   margin: 12px 0 10px;
-  font-family: "STKaiti", "KaiTi", "Kaiti SC", "Songti SC", serif;
+  font-family: "STKaiti", "KaiTi", "Kaiti SC", "Songti SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei", serif;
   font-size: 2.34rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -822,7 +822,7 @@ async function handleCloseWindow() {
 .shell__header h2 {
   margin: 0 0 0;
   padding-left: 8px;
-  font-family: "STKaiti", "KaiTi", "Kaiti SC", "Songti SC", serif;
+  font-family: "STKaiti", "KaiTi", "Kaiti SC", "Songti SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei", serif;
   font-size: 1.68rem;
   font-weight: 700;
   line-height: 1.06;

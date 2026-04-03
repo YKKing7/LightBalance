@@ -3,7 +3,7 @@ import AppRoot from "../views/AppRoot.vue";
 
 const globalStyle = `
 :root {
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "WenQuanYi Micro Hei", sans-serif;
   color: #233127;
   background:
     radial-gradient(circle at top left, rgba(255, 223, 168, 0.7), transparent 28%),

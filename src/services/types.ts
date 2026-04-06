@@ -139,6 +139,7 @@ export interface OverviewTodayItem {
   detail: string;
   meta: string;
   tone: Tone;
+  action?: string;
 }
 
 export interface OverviewPlannedItem {
@@ -146,6 +147,7 @@ export interface OverviewPlannedItem {
   title: string;
   detail: string;
   tag: string;
+  action?: string;
 }
 
 export interface OverviewSummary {
@@ -277,15 +279,15 @@ export interface DeleteDietEntryInput extends UserScopedPayload {
   id: number;
 }
 
-export interface CreateDietEntryRequest extends UserScopedPayload, CreateDietEntryInput {}
+export interface CreateDietEntryRequest extends UserScopedPayload, CreateDietEntryInput { }
 
-export interface UpdateDietEntryRequest extends UserScopedPayload, UpdateDietEntryInput {}
+export interface UpdateDietEntryRequest extends UserScopedPayload, UpdateDietEntryInput { }
 
 export interface AddWaterIntakeInput {
   amountMl: number;
 }
 
-export interface AddWaterIntakeRequest extends UserScopedPayload, AddWaterIntakeInput {}
+export interface AddWaterIntakeRequest extends UserScopedPayload, AddWaterIntakeInput { }
 
 export interface ExerciseEntryInput {
   name: string;
@@ -305,9 +307,15 @@ export interface DeleteExerciseEntryInput extends UserScopedPayload {
   id: number;
 }
 
-export interface CreateExerciseEntryRequest extends UserScopedPayload, ExerciseEntryInput {}
+export interface CreateExerciseEntryRequest extends UserScopedPayload, ExerciseEntryInput { }
 
-export interface UpdateExerciseEntryRequest extends UserScopedPayload, UpdateExerciseEntryInput {}
+export interface UpdateExerciseEntryRequest extends UserScopedPayload, UpdateExerciseEntryInput { }
+
+export interface UpdateTrendSleepRequest {
+  recordDate: string;
+  sleepHours: number;
+  userId?: number;
+}
 
 export interface WorkoutItem {
   id: number;
@@ -485,7 +493,7 @@ export interface AskAssistantInput {
   focus?: string;
 }
 
-export interface AskAssistantRequest extends UserScopedPayload, AskAssistantInput {}
+export interface AskAssistantRequest extends UserScopedPayload, AskAssistantInput { }
 
 export interface AssistantConversationItem {
   id: number;
@@ -527,6 +535,7 @@ export interface LightBalanceBridge {
   getDietSummary?: (payload: UserScopedPayload) => Promise<DietSummary>;
   getExerciseSummary?: (payload: UserScopedPayload) => Promise<ExerciseSummary>;
   getTrendSummary?: (payload: UserScopedPayload) => Promise<TrendSummary>;
+  updateTrendSleep?: (payload: UpdateTrendSleepRequest) => Promise<TrendSummary>;
   getAssistantPlan?: (payload: UserScopedPayload) => Promise<AssistantPlan>;
   askAssistant?: (payload: AskAssistantRequest) => Promise<AssistantPlan>;
   probeGeminiConnection?: () => Promise<GeminiProbeResult>;

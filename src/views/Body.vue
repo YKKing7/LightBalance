@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
+import { computed, reactive, watch, ref } from "vue";
 import type { BodyProfile, UserProfileRecord } from "../services/types";
+
+const isEditing = ref(false);
 
 const props = defineProps<{
   profile: BodyProfile;
@@ -118,6 +120,32 @@ const weightProgressLabel = computed(() => {
   return "已到达当前目标";
 });
 
+const bmiTone = computed(() => {
+  const bmi = props.profile.bmi ?? 0;
+  if (!bmi) return "positive";
+  if (bmi >= 18.5 && bmi < 24) return "positive";
+  if (bmi >= 24 && bmi < 28) return "warning";
+  if (bmi >= 28) return "danger";
+  return "warning"; // < 18.5
+});
+
+const bodyFatTone = computed(() => {
+  const rate = props.profile.bodyFatRate ?? 0;
+  const isMale = props.profile.gender === "男";
+  if (!rate) return "positive";
+  
+  if (isMale) {
+    if (rate >= 10 && rate <= 20) return "positive";
+    if (rate > 20 && rate <= 25) return "warning";
+    return "danger";
+  } else {
+    // Female
+    if (rate >= 20 && rate <= 30) return "positive";
+    if (rate > 30 && rate <= 35) return "warning";
+    return "danger";
+  }
+});
+
 const archiveRows = computed(() => [
   {
     category: "基础资料",
@@ -158,6 +186,7 @@ const archiveRows = computed(() => [
 ]);
 
 function handleSave() {
+  isEditing.value = false;
   emit("save", {
     nickname: form.nickname.trim(),
     age: Number(form.age),
@@ -244,7 +273,7 @@ function handleSave() {
         </div>
 
         <div class="hero__stats">
-          <div class="hero-stat">
+          <div :class="['hero-stat', `tone-${bmiTone}`]">
             <span>当前 BMI</span>
             <strong>{{ profile.bmi ?? "--" }}</strong>
           </div>
@@ -252,7 +281,7 @@ function handleSave() {
             <span>基础代谢</span>
             <strong>{{ profile.bmr ?? "--" }} kcal</strong>
           </div>
-          <div class="hero-stat">
+          <div :class="['hero-stat', `tone-${bodyFatTone}`]">
             <span>体脂率</span>
             <strong>{{ profile.bodyFatRate ?? "--" }}%</strong>
           </div>
@@ -310,7 +339,9 @@ function handleSave() {
               <p class="eyebrow">Profile Matrix</p>
               <h4>个人数据总览表</h4>
             </div>
-            <span class="panel__badge">重点关注“当前状态”和“目标设定”</span>
+            <div style="display: flex; gap: 8px; align-items: center">
+              <span class="panel__badge">重点关注“当前状态”和“目标设定”</span>
+            </div>
           </div>
 
           <div class="table-shell">
@@ -343,9 +374,11 @@ function handleSave() {
             <h4>健康档案与目标设置</h4>
             <p class="panel__intro">把基础数据、目标和生活方式分开填写，后续看板和建议会更贴近你的真实情况。</p>
           </div>
-          <button class="save" type="button" :disabled="saving || loading" @click="handleSave">
-            {{ saving ? "保存中..." : "保存档案" }}
-          </button>
+          <div class="panel__actions">
+            <button class="save btn btn--primary" type="button" :disabled="saving || loading" @click="handleSave">
+              {{ saving ? "保存中..." : "保存档案" }}
+            </button>
+          </div>
         </div>
 
         <div v-if="loading" class="loading">
@@ -817,6 +850,27 @@ function handleSave() {
   color: #fff9f1;
 }
 
+.hero-stat.tone-positive {
+  background: linear-gradient(180deg, rgba(224, 241, 224, 0.9), rgba(244, 251, 244, 0.95));
+  border: 1px solid rgba(46, 204, 113, 0.2);
+}
+.hero-stat.tone-positive span { color: #2ecc71; }
+.hero-stat.tone-positive strong { color: #27ae60; }
+
+.hero-stat.tone-warning {
+  background: linear-gradient(180deg, rgba(253, 243, 225, 0.9), rgba(255, 249, 238, 0.95));
+  border: 1px solid rgba(241, 196, 15, 0.2);
+}
+.hero-stat.tone-warning span { color: #e67e22; }
+.hero-stat.tone-warning strong { color: #d35400; }
+
+.hero-stat.tone-danger {
+  background: linear-gradient(180deg, rgba(253, 237, 236, 0.9), rgba(255, 245, 245, 0.95));
+  border: 1px solid rgba(231, 76, 60, 0.2);
+}
+.hero-stat.tone-danger span { color: #e74c3c; }
+.hero-stat.tone-danger strong { color: #c0392b; }
+
 .hero-stat--accent span,
 .hero-stat--accent strong {
   color: inherit;
@@ -966,20 +1020,37 @@ function handleSave() {
   line-height: 1.7;
 }
 
-.save {
+.panel__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn {
   border: 0;
   border-radius: 16px;
   padding: 12px 18px;
-  background: linear-gradient(135deg, #22342a, #42604b);
-  color: #fffaf0;
   font-weight: 700;
   cursor: pointer;
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, #22342a, #42604b);
+  color: #fffaf0;
   box-shadow: 0 10px 24px rgba(44, 64, 51, 0.16);
 }
 
-.save:disabled {
+.btn--primary:disabled {
   opacity: 0.72;
   cursor: wait;
+}
+
+.btn--secondary {
+  background: rgba(224, 235, 227, 0.8);
+  color: #2b4435;
+  box-shadow: 0 4px 12px rgba(44, 64, 51, 0.04);
+}
+.btn--secondary:hover {
+  background: rgba(210, 225, 214, 0.9);
 }
 
 .table-shell {

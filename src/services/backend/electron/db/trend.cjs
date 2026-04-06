@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getTrendSummary = getTrendSummary;
+exports.updateTrendSleep = updateTrendSleep;
 const shared_cjs_1 = require("./shared.cjs");
 const body_cjs_1 = require("./body.cjs");
 const WINDOW_DAYS = 21;
@@ -57,6 +58,7 @@ async function ensureTrendSchema(connection) {
       KEY idx_trend_snapshot_user_date (user_id, snapshot_date)
     )
   `);
+    try { await connection.execute("ALTER TABLE trend_daily_snapshot ADD COLUMN is_manual_sleep TINYINT(1) NOT NULL DEFAULT 0"); } catch (e) { }
 }
 async function getExistingTables(connection) {
     const [rows] = await connection.execute(`SELECT TABLE_NAME
@@ -72,7 +74,7 @@ async function getDietAggregates(connection, userId, startDate, endDate, tableNa
      FROM diet_meal_entry
      WHERE user_id = ? AND log_date BETWEEN ? AND ?
      GROUP BY log_date`, [userId, startDate, endDate]);
-    return new Map(rows.map((row) => [String(row.log_date).slice(0, 10), Number(row.calorie_intake ?? 0)]));
+    return new Map(rows.map((row) => [(0, shared_cjs_1.formatDateKey)(new Date(row.log_date)), Number(row.calorie_intake ?? 0)]));
 }
 async function getExerciseAggregates(connection, userId, startDate, endDate, tableNames) {
     if (!tableNames.has("exercise_session_log")) {
@@ -83,7 +85,7 @@ async function getExerciseAggregates(connection, userId, startDate, endDate, tab
      WHERE user_id = ? AND performed_on BETWEEN ? AND ?
      GROUP BY performed_on`, [userId, startDate, endDate]);
     return new Map(rows.map((row) => [
-        String(row.performed_on).slice(0, 10),
+        (0, shared_cjs_1.formatDateKey)(new Date(row.performed_on)),
         {
             calorieBurned: Number(row.calorie_burned ?? 0),
             trainingMinutes: Number(row.training_minutes ?? 0)
@@ -117,24 +119,25 @@ function buildDraftForDate(input) {
     };
 }
 async function upsertSnapshot(connection, userId, dateString, draft) {
-    const [rows] = await connection.execute("SELECT snapshot_id FROM trend_daily_snapshot WHERE user_id = ? AND snapshot_date = ? LIMIT 1", [userId, dateString]);
+    const [rows] = await connection.execute("SELECT snapshot_id, is_manual_sleep FROM trend_daily_snapshot WHERE user_id = ? AND snapshot_date = ? LIMIT 1", [userId, dateString]);
     const now = new Date();
     if (rows[0]) {
-        await connection.execute(`UPDATE trend_daily_snapshot
-       SET weight_kg = ?, body_fat_rate = ?, waist_cm = ?, sleep_hours = ?, steps = ?, calorie_intake = ?, calorie_burned = ?,
-           training_minutes = ?, updated_at = ?
-       WHERE snapshot_id = ?`, [
-            draft.weightKg,
-            draft.bodyFatRate,
-            draft.waistCm,
-            draft.sleepHours,
-            draft.steps,
-            draft.calorieIntake,
-            draft.calorieBurned,
-            draft.trainingMinutes,
-            now,
-            Number(rows[0].snapshot_id)
-        ]);
+        const isManual = Boolean(rows[0].is_manual_sleep);
+        if (isManual) {
+            await connection.execute(`UPDATE trend_daily_snapshot
+           SET weight_kg = ?, body_fat_rate = ?, waist_cm = ?, steps = ?, calorie_intake = ?, calorie_burned = ?,
+               training_minutes = ?, updated_at = ?
+           WHERE snapshot_id = ?`, [
+                draft.weightKg, draft.bodyFatRate, draft.waistCm, draft.steps, draft.calorieIntake, draft.calorieBurned, draft.trainingMinutes, now, Number(rows[0].snapshot_id)
+            ]);
+        } else {
+            await connection.execute(`UPDATE trend_daily_snapshot
+           SET weight_kg = ?, body_fat_rate = ?, waist_cm = ?, sleep_hours = ?, steps = ?, calorie_intake = ?, calorie_burned = ?,
+               training_minutes = ?, updated_at = ?
+           WHERE snapshot_id = ?`, [
+                draft.weightKg, draft.bodyFatRate, draft.waistCm, draft.sleepHours, draft.steps, draft.calorieIntake, draft.calorieBurned, draft.trainingMinutes, now, Number(rows[0].snapshot_id)
+            ]);
+        }
         return;
     }
     const snapshotId = await (0, shared_cjs_1.getNextTableId)(connection, "trend_daily_snapshot", "snapshot_id", 110000);
@@ -317,28 +320,28 @@ function buildRecords(rows, targetWeight, bmr) {
         .slice()
         .reverse()
         .map((row) => {
-        const normalizedDate = normalizeSnapshotDate(row.snapshot_date);
-        const calorieGap = Number(row.calorie_intake) - (Number(row.calorie_burned) + bmr);
-        const weightGap = Number(row.weight_kg) - targetWeight;
-        const status = Number(row.sleep_hours) >= 7.2 && Number(row.steps) >= 8500
-            ? "恢复优"
-            : calorieGap > 1900 || weightGap > 2.5
-                ? "需校准"
-                : Number(row.training_minutes) >= 25
-                    ? "训练日"
-                    : "平衡日";
-        return {
-            date: normalizedDate,
-            weightKg: (0, shared_cjs_1.round)(Number(row.weight_kg), 1),
-            bodyFatRate: (0, shared_cjs_1.round)(Number(row.body_fat_rate ?? 0), 1),
-            waistCm: (0, shared_cjs_1.round)(Number(row.waist_cm), 1),
-            sleepHours: (0, shared_cjs_1.round)(Number(row.sleep_hours), 1),
-            steps: Number(row.steps),
-            trainingMinutes: Number(row.training_minutes),
-            calorieGap,
-            status
-        };
-    });
+            const normalizedDate = normalizeSnapshotDate(row.snapshot_date);
+            const calorieGap = Number(row.calorie_intake) - (Number(row.calorie_burned) + bmr);
+            const weightGap = Number(row.weight_kg) - targetWeight;
+            const status = Number(row.sleep_hours) >= 7.2 && Number(row.steps) >= 8500
+                ? "恢复优"
+                : calorieGap > 1900 || weightGap > 2.5
+                    ? "需校准"
+                    : Number(row.training_minutes) >= 25
+                        ? "训练日"
+                        : "平衡日";
+            return {
+                date: normalizedDate,
+                weightKg: (0, shared_cjs_1.round)(Number(row.weight_kg), 1),
+                bodyFatRate: (0, shared_cjs_1.round)(Number(row.body_fat_rate ?? 0), 1),
+                waistCm: (0, shared_cjs_1.round)(Number(row.waist_cm), 1),
+                sleepHours: (0, shared_cjs_1.round)(Number(row.sleep_hours), 1),
+                steps: Number(row.steps),
+                trainingMinutes: Number(row.training_minutes),
+                calorieGap,
+                status
+            };
+        });
 }
 async function getTrendSummary(userId) {
     await (0, shared_cjs_1.ensureAnalyticsSchema)();
@@ -410,6 +413,34 @@ async function getTrendSummary(userId) {
         };
     }
     finally {
+        connection.release();
+    }
+}
+
+async function updateTrendSleep(input) {
+    const userId = Number(input.userId);
+    const dateString = String(input.recordDate).trim();
+    const sleepHours = Number(input.sleepHours);
+    if (!userId || !dateString) throw new Error("Missing parameters");
+    const shared = require('./shared.cjs');
+    const connection = await shared.getPool().getConnection();
+    try {
+        await ensureTrendSchema(connection);
+        try {
+            await connection.execute("ALTER TABLE trend_daily_snapshot ADD COLUMN is_manual_sleep TINYINT(1) NOT NULL DEFAULT 0");
+        } catch (e) { }
+        await ensureTrendSnapshots(connection, userId);
+
+        await connection.beginTransaction();
+        await connection.execute(
+            "UPDATE trend_daily_snapshot SET sleep_hours = ?, is_manual_sleep = 1, updated_at = ? WHERE user_id = ? AND snapshot_date = ?",
+            [sleepHours, new Date(), userId, dateString]
+        );
+        await connection.commit();
+    } catch (e) {
+        await connection.rollback();
+        throw e;
+    } finally {
         connection.release();
     }
 }

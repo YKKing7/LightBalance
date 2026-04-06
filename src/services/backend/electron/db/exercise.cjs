@@ -115,7 +115,7 @@ async function ensureSeedSessions(connection, userId) {
     });
 }
 function calculateStreak(rows, todayDate) {
-    const completedDates = new Set(rows.filter((row) => row.status === DEFAULT_STATUS).map((row) => String(row.performed_on).slice(0, 10)));
+    const completedDates = new Set(rows.filter((row) => row.status === DEFAULT_STATUS).map((row) => (0, shared_cjs_1.formatDateKey)(new Date(row.performed_on))));
     let streak = 0;
     const cursor = new Date(todayDate);
     while (completedDates.has((0, shared_cjs_1.formatDateKey)(cursor))) {
@@ -179,11 +179,11 @@ async function readExerciseSummary(userId) {
        WHERE user_id = ? AND performed_on BETWEEN ? AND ?
        ORDER BY performed_at DESC, session_id DESC`, [userId, startDate, endDate]);
         const completedRows = rows.filter((row) => row.status === DEFAULT_STATUS);
-        const completedDates = new Set(completedRows.map((row) => String(row.performed_on).slice(0, 10)));
+        const completedDates = new Set(completedRows.map((row) => (0, shared_cjs_1.formatDateKey)(new Date(row.performed_on))));
         const totalMinutes = completedRows.reduce((sum, row) => sum + Number(row.duration_minutes), 0);
         const totalCaloriesBurned = completedRows.reduce((sum, row) => sum + Number(row.calories_burned), 0);
         const todayMinutes = completedRows
-            .filter((row) => String(row.performed_on).slice(0, 10) === todayDate)
+            .filter((row) => (0, shared_cjs_1.formatDateKey)(new Date(row.performed_on)) === todayDate)
             .reduce((sum, row) => sum + Number(row.duration_minutes), 0);
         const categoryMap = new Map();
         for (const row of completedRows) {

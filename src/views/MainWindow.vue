@@ -341,7 +341,7 @@ async function handleCloseWindow() {
             @save-settings="handleSaveSettings"
             @logout="handleLogout"
           />
-          <Overview v-else-if="currentView === 'overview' && overview" :summary="overview" />
+          <Overview v-else-if="currentView === 'overview' && overview" :summary="overview" @refresh="refreshOverview" @navigate="handleModuleNavigate" />
           <Body
             v-else-if="currentView === 'body' && body"
             :profile="body"
@@ -351,7 +351,7 @@ async function handleCloseWindow() {
             @save="handleSaveProfile"
           />
           <Diet v-else-if="currentView === 'diet' && diet" :summary="diet" />
-          <Exercise v-else-if="currentView === 'exercise' && exercise" :summary="exercise" />
+          <Exercise v-else-if="currentView === 'exercise' && exercise" :summary="exercise" @change="refreshOverview" />
           <Trend v-else-if="currentView === 'trend' && trend" :summary="trend" />
           <Assistant
             v-else-if="currentView === 'assistant' && assistantPlan"

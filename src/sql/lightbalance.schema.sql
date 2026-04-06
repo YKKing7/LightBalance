@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS `trend_daily_snapshot` (
   `body_fat_rate` DECIMAL(5,2) NULL,
   `waist_cm` DECIMAL(6,2) NOT NULL,
   `sleep_hours` DECIMAL(4,1) NOT NULL DEFAULT 0,
+  `is_manual_sleep` TINYINT(1) NOT NULL DEFAULT 0,
   `steps` INT NOT NULL DEFAULT 0,
   `calorie_intake` INT NOT NULL DEFAULT 0,
   `calorie_burned` INT NOT NULL DEFAULT 0,

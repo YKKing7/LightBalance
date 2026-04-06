@@ -7,6 +7,10 @@ const props = defineProps<{
   summary: ExerciseSummary;
 }>();
 
+const emit = defineEmits<{
+  (e: "change"): void;
+}>();
+
 const localSummary = ref<ExerciseSummary>(props.summary);
 const saving = ref(false);
 const activeCategory = ref<"全部" | string>("全部");
@@ -182,6 +186,7 @@ async function applySummary(task: Promise<ExerciseSummary>) {
 
   try {
     localSummary.value = await task;
+    emit("change");
   } finally {
     saving.value = false;
   }

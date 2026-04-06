@@ -24,6 +24,9 @@ electron_1.contextBridge.exposeInMainWorld("lightBalanceBridge", {
     getTrendSummary(payload) {
         return electron_1.ipcRenderer.invoke("lightbalance:get-trend-summary", payload);
     },
+    updateTrendSleep(payload) {
+        return electron_1.ipcRenderer.invoke("lightbalance:update-trend-sleep", payload);
+    },
     getAssistantPlan(payload) {
         return electron_1.ipcRenderer.invoke("lightbalance:get-assistant-plan", payload);
     },

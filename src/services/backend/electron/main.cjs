@@ -142,6 +142,10 @@ electron_1.ipcMain.handle("lightbalance:get-diet-summary", async (_event, payloa
 electron_1.ipcMain.handle("lightbalance:get-exercise-summary", async (_event, payload) => {
     return (0, index_cjs_1.getExerciseSummary)(Number(payload?.userId));
 });
+electron_1.ipcMain.handle("lightbalance:update-trend-sleep", async (_event, payload) => {
+    await require("./db/index.cjs").updateTrendSleep(payload ?? {});
+    return require("./db/index.cjs").getTrendSummary(Number(payload?.userId));
+});
 electron_1.ipcMain.handle("lightbalance:get-trend-summary", async (_event, payload) => {
     return (0, index_cjs_1.getTrendSummary)(Number(payload?.userId));
 });

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateAccountSettings = exports.registerUser = exports.migrateLegacyPasswords = exports.loginUser = exports.probeGeminiConnection = exports.getAssistantPlan = exports.askAssistant = exports.getTrendSummary = exports.updateExerciseEntry = exports.getExerciseSummary = exports.deleteExerciseEntry = exports.addExerciseEntry = exports.updateDietEntry = exports.getDietSummary = exports.deleteDietEntry = exports.addWaterIntake = exports.addDietEntry = exports.updateBodyProfile = exports.getBodyProfile = exports.getOverviewSummary = exports.ensureAnalyticsSchema = exports.closePool = void 0;
+exports.updateAccountSettings = exports.registerUser = exports.migrateLegacyPasswords = exports.loginUser = exports.probeGeminiConnection = exports.getAssistantPlan = exports.askAssistant = exports.updateTrendSleep = exports.getTrendSummary = exports.updateExerciseEntry = exports.getExerciseSummary = exports.deleteExerciseEntry = exports.addExerciseEntry = exports.updateDietEntry = exports.getDietSummary = exports.deleteDietEntry = exports.addWaterIntake = exports.addDietEntry = exports.updateBodyProfile = exports.getBodyProfile = exports.getOverviewSummary = exports.ensureAnalyticsSchema = exports.closePool = void 0;
 var shared_cjs_1 = require("./shared.cjs");
 Object.defineProperty(exports, "closePool", { enumerable: true, get: function () { return shared_cjs_1.closePool; } });
 Object.defineProperty(exports, "ensureAnalyticsSchema", { enumerable: true, get: function () { return shared_cjs_1.ensureAnalyticsSchema; } });
@@ -31,3 +31,5 @@ Object.defineProperty(exports, "loginUser", { enumerable: true, get: function ()
 Object.defineProperty(exports, "migrateLegacyPasswords", { enumerable: true, get: function () { return auth_cjs_1.migrateLegacyPasswords; } });
 Object.defineProperty(exports, "registerUser", { enumerable: true, get: function () { return auth_cjs_1.registerUser; } });
 Object.defineProperty(exports, "updateAccountSettings", { enumerable: true, get: function () { return auth_cjs_1.updateAccountSettings; } });
+
+Object.defineProperty(exports, "updateTrendSleep", { enumerable: true, get: function () { return require("./trend.cjs").updateTrendSleep; } });

@@ -31,12 +31,13 @@ function getWeekStart(date) {
     start.setDate(start.getDate() + mondayOffset);
     return start;
 }
-function createTodayPlanItem(period, title, detail, tag) {
+function createTodayPlanItem(period, title, detail, tag, action = "") {
     return {
         period,
         title,
         detail,
-        tag
+        tag,
+        action
     };
 }
 async function getOverviewSummary(userId) {
@@ -84,7 +85,7 @@ async function getOverviewSummary(userId) {
             tone: dietSummary.waterIntakeMl >= dietSummary.waterTargetMl ? "positive" : "neutral"
         });
     }
-    if (profile.updatedAt && String(profile.updatedAt).slice(0, 10) === todayKey) {
+    if (profile.updatedAt && (0, shared_cjs_1.formatDateKey)(new Date(profile.updatedAt)) === todayKey) {
         completedToday.push({
             title: "今日已更新身体档案",
             detail: "目标体重、习惯和基础信息已经同步到当前概览。",
@@ -106,7 +107,8 @@ async function getOverviewSummary(userId) {
             title: `还差 ${exerciseTargetMinutes - exerciseSummary.todayMinutes} 分钟活动`,
             detail: "补一段快走、骑行或核心训练，就能把今天的运动闭环收住。",
             meta: "建议拆成 15 到 20 分钟的小段完成",
-            tone: exerciseSummary.todayMinutes === 0 ? "warning" : "neutral"
+            tone: exerciseSummary.todayMinutes === 0 ? "warning" : "neutral",
+            action: "go_exercise"
         });
     }
     if (dietSummary.protein < dietSummary.proteinTarget) {
@@ -114,7 +116,8 @@ async function getOverviewSummary(userId) {
             title: `蛋白质还差 ${dietSummary.proteinTarget - dietSummary.protein} g`,
             detail: "下一餐优先补鸡蛋、牛奶、豆腐或瘦肉，恢复感会更稳定。",
             meta: `当前 ${dietSummary.protein} / ${dietSummary.proteinTarget} g`,
-            tone: "neutral"
+            tone: "neutral",
+            action: "go_diet"
         });
     }
     if (dietSummary.waterIntakeMl < dietSummary.waterTargetMl) {
@@ -122,24 +125,56 @@ async function getOverviewSummary(userId) {
             title: `补水还差 ${dietSummary.waterTargetMl - dietSummary.waterIntakeMl} ml`,
             detail: "建议分 2 到 3 次补完，避免临睡前集中喝太多。",
             meta: `当前 ${dietSummary.waterIntakeMl} / ${dietSummary.waterTargetMl} ml`,
-            tone: todayWaterCompletion < 0.5 ? "warning" : "neutral"
+            tone: todayWaterCompletion < 0.5 ? "warning" : "neutral",
+            action: "go_water"
         });
     }
     pendingToday.push({
         title: `今晚争取睡满 ${profile.sleepTargetHours} 小时`,
         detail: "把恢复质量守住，明天的训练执行力和食欲控制都会更好。",
         meta: "睡眠是今天最后一项关键任务",
-        tone: "neutral"
+        tone: "neutral",
+        action: "update_sleep"
     });
-    const plannedToday = [
-        createTodayPlanItem("接下来", exerciseSummary.todayMinutes >= exerciseTargetMinutes ? "安排一段轻恢复" : "补一段短训练", exerciseSummary.todayMinutes >= exerciseTargetMinutes
-            ? "做 10 分钟拉伸或散步，把身体从工作状态慢慢带回恢复状态。"
-            : "优先做 15 到 20 分钟快走、骑行或徒手循环，先把运动时长补上。", exerciseSummary.todayMinutes >= exerciseTargetMinutes ? "恢复" : "训练"),
-        createTodayPlanItem("下一餐", dietSummary.protein >= dietSummary.proteinTarget ? "保持清爽收口" : "把蛋白质补齐", dietSummary.protein >= dietSummary.proteinTarget
-            ? "控制油脂和精制碳水，保持今天已经建立起来的饮食节奏。"
-            : "主菜优先鸡胸、鱼、豆腐或鸡蛋，同时把蔬菜占比拉上来。", "饮食"),
-        createTodayPlanItem("今晚", "把恢复节律收好", `在睡前完成剩余补水，尽量给自己留出 ${profile.sleepTargetHours} 小时睡眠窗口。`, "睡眠")
-    ];
+
+    const plannedToday = [];
+    const hasRecoveryDone = exerciseSummary.workouts.some(w => {
+        const dStr = typeof w.performedAt === 'string' ? w.performedAt : (w.performedAt instanceof Date ? (0, shared_cjs_1.formatDateKey)(w.performedAt) : '');
+        return dStr.includes(todayKey) && w.status === "已完成" && (w.category === "恢复" || String(w.name).includes("拉伸") || String(w.name).includes("恢复"));
+    });
+
+    if (!(exerciseSummary.todayMinutes >= exerciseTargetMinutes && hasRecoveryDone)) {
+        plannedToday.push(createTodayPlanItem(
+            "接下来",
+            exerciseSummary.todayMinutes >= exerciseTargetMinutes ? "安排一段轻恢复" : "补一段短训练",
+            exerciseSummary.todayMinutes >= exerciseTargetMinutes
+                ? "做 10 分钟拉伸或散步，把身体从工作状态慢慢带回恢复状态。"
+                : "优先做 15 到 20 分钟快走、骑行或徒手循环，先把运动时长补上。",
+            exerciseSummary.todayMinutes >= exerciseTargetMinutes ? "恢复" : "训练",
+            "go_exercise"
+        ));
+    }
+
+    if (dietSummary.meals.length < 3) {
+        plannedToday.push(createTodayPlanItem(
+            "下一餐",
+            dietSummary.protein >= dietSummary.proteinTarget ? "保持清爽收口" : "把蛋白质补齐",
+            dietSummary.protein >= dietSummary.proteinTarget
+                ? "控制油脂和精制碳水，保持今天已经建立起来的饮食节奏。"
+                : "主菜优先鸡胸、鱼、豆腐或鸡蛋，同时把蔬菜占比拉上来。",
+            "饮食",
+            "go_diet"
+        ));
+    }
+
+    const waterDone = dietSummary.waterIntakeMl >= dietSummary.waterTargetMl;
+    plannedToday.push(createTodayPlanItem(
+        "今晚",
+        "把恢复节律收好",
+        `在睡前完成剩余补水，尽量给自己留出 ${profile.sleepTargetHours} 小时睡眠窗口。`,
+        "睡眠",
+        waterDone ? "completed" : "go_water"
+    ));
     const todayCompletedCount = completedToday.filter((item) => item.tone !== "warning").length;
     const todayPendingCount = pendingToday.length;
     const todayScore = clamp(Math.round((Math.min(completedToday.length, 4) / (Math.min(completedToday.length, 4) + Math.min(todayPendingCount, 4))) * 100), 35, 96);
@@ -156,7 +191,7 @@ async function getOverviewSummary(userId) {
         const start = getWeekStart(now);
         const buckets = new Map();
         for (const workout of exerciseSummary.workouts.filter((item) => item.status === "已完成")) {
-            const dateKey = String(workout.performedAt).slice(0, 10);
+            const dateKey = (0, shared_cjs_1.formatDateKey)(new Date(workout.performedAt));
             const bucket = buckets.get(dateKey) ?? { durationMinutes: 0, caloriesBurned: 0 };
             bucket.durationMinutes += workout.durationMinutes;
             bucket.caloriesBurned += workout.caloriesBurned;

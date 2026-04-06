@@ -100,6 +100,24 @@ export function useDesktopApp() {
 
   function handleNavigate(view: ModuleKey) {
     currentView.value = view;
+    // 每次切换标签时，自动为进入的模块静默刷新一次最新数据，确保与其他页面的修改同步
+    switch (view) {
+      case "overview":
+        void refreshOverview();
+        break;
+      case "body":
+        void refreshBody();
+        break;
+      case "diet":
+        void loadRefData("diet", getDietSummary, diet);
+        break;
+      case "exercise":
+        void loadRefData("exercise", getExerciseSummary, exercise);
+        break;
+      case "trend":
+        void loadRefData("trend", getTrendSummary, trend);
+        break;
+    }
   }
 
   onMounted(() => {

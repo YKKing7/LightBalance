@@ -346,6 +346,7 @@ async function handleCloseWindow() {
             v-else-if="currentView === 'body' && body"
             :profile="body"
             :record="profile"
+            :trend-summary="trend"
             :loading="profileLoading"
             :saving="profileSaving"
             @save="handleSaveProfile"

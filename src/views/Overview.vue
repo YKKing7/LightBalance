@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { addWaterIntake } from "../services/backend/diet";
-import type { OverviewSummary } from "../services/types";
+import type { OverviewSummary, Tone } from "../services/types";
 
 const props = defineProps<{
   summary: OverviewSummary;
@@ -11,6 +11,26 @@ const emit = defineEmits<{
   (e: "refresh"): void;
   (e: "navigate", target: import("../services/types").ModuleKey): void;
 }>();
+
+type KanbanColumnKey = "todo" | "doing" | "done";
+
+interface KanbanCard {
+  uid: string;
+  title: string;
+  detail: string;
+  meta: string;
+  tone: Tone;
+  period: string;
+  tag: string;
+  action?: string;
+  finished: boolean;
+}
+
+interface KanbanBoardState {
+  todo: KanbanCard[];
+  doing: KanbanCard[];
+  done: KanbanCard[];
+}
 
 const updatedAtLabel = computed(() => {
   if (!props.summary.profileUpdatedAt) {
@@ -33,6 +53,407 @@ function progressWidth(progress: number) {
   return `${Math.max(8, Math.min(progress, 100))}%`;
 }
 
+const currentHour = ref(new Date().getHours());
+
+const timeContext = computed(() => {
+  const hour = currentHour.value;
+  if (hour >= 5 && hour < 10) {
+    return { label: "清晨", greeting: "早上好", periodHints: ["清晨", "早", "早餐", "上午"] };
+  }
+  if (hour >= 10 && hour < 14) {
+    return { label: "午间", greeting: "中午好", periodHints: ["午", "中午", "午餐"] };
+  }
+  if (hour >= 14 && hour < 18) {
+    return { label: "下午", greeting: "下午好", periodHints: ["下午", "傍晚"] };
+  }
+  if (hour >= 18 && hour < 23) {
+    return { label: "晚间", greeting: "晚上好", periodHints: ["晚", "夜", "晚餐"] };
+  }
+  return { label: "深夜", greeting: "夜深了", periodHints: ["夜", "晚"] };
+});
+
+const dynamicGreeting = computed(() => `${timeContext.value.greeting}，${props.summary.momentumLabel}`);
+
+const contextualHeadline = computed(() => {
+  return `${timeContext.value.label}阶段先完成高优先级任务，今天会更稳。`;
+});
+
+const todoCards = ref<KanbanCard[]>([]);
+const doingCards = ref<KanbanCard[]>([]);
+const doneCards = ref<KanbanCard[]>([]);
+
+const draggingCard = ref<{ uid: string; from: KanbanColumnKey } | null>(null);
+const dragOverColumn = ref<KanbanColumnKey | null>(null);
+const dragOverCardUid = ref<string | null>(null);
+const dragOverPlacement = ref<"before" | "after" | null>(null);
+
+const priorityTodoCount = computed(() => {
+  const hints = timeContext.value.periodHints;
+  return todoCards.value.filter((item) => hints.some((hint) => item.period.includes(hint))).length;
+});
+
+const topPriorityCard = computed(() => todoCards.value[0]);
+
+function sortTodoByTimePriority(items: KanbanCard[]) {
+  const hints = timeContext.value.periodHints;
+
+  return [...items].sort((a, b) => {
+    const aPriority = hints.some((hint) => a.period.includes(hint)) ? 0 : 1;
+    const bPriority = hints.some((hint) => b.period.includes(hint)) ? 0 : 1;
+    return aPriority - bPriority;
+  });
+}
+
+const boardStorageKey = computed(() => {
+  const dateKey = props.summary.dateLabel || new Date().toISOString().slice(0, 10);
+  return `lightbalance:overview:kanban:${props.summary.userName}:${dateKey}`;
+});
+
+function saveBoardState() {
+  try {
+    const payload: KanbanBoardState = {
+      todo: todoCards.value,
+      doing: doingCards.value,
+      done: doneCards.value
+    };
+    localStorage.setItem(boardStorageKey.value, JSON.stringify(payload));
+  } catch (err) {
+    console.warn("Failed to save overview board state", err);
+  }
+}
+
+function restoreBoardState(defaultState: KanbanBoardState) {
+  try {
+    const raw = localStorage.getItem(boardStorageKey.value);
+    if (!raw) {
+      return defaultState;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<KanbanBoardState>;
+    const parsedTodo = Array.isArray(parsed.todo) ? parsed.todo : [];
+    const parsedDoing = Array.isArray(parsed.doing) ? parsed.doing : [];
+    const parsedDone = Array.isArray(parsed.done) ? parsed.done : [];
+
+    const baseMap = new Map<string, KanbanCard>();
+    [...defaultState.todo, ...defaultState.doing, ...defaultState.done].forEach((item) => {
+      baseMap.set(item.uid, item);
+    });
+
+    const seen = new Set<string>();
+    const mergeColumn = (items: KanbanCard[], column: KanbanColumnKey) => {
+      const merged: KanbanCard[] = [];
+      for (const storedItem of items) {
+        const base = baseMap.get(storedItem.uid);
+        if (!base || seen.has(storedItem.uid)) {
+          continue;
+        }
+
+        const card: KanbanCard = { ...base, ...storedItem };
+        applyCardStatusForColumn(card, column);
+        merged.push(card);
+        seen.add(storedItem.uid);
+      }
+      return merged;
+    };
+
+    const todo = mergeColumn(parsedTodo, "todo");
+    const doing = mergeColumn(parsedDoing, "doing");
+    const done = mergeColumn(parsedDone, "done");
+
+    const appendRemaining = (columnItems: KanbanCard[], target: KanbanCard[], column: KanbanColumnKey) => {
+      for (const item of columnItems) {
+        if (seen.has(item.uid)) continue;
+        const card: KanbanCard = { ...item };
+        applyCardStatusForColumn(card, column);
+        target.push(card);
+      }
+    };
+
+    appendRemaining(defaultState.todo, todo, "todo");
+    appendRemaining(defaultState.doing, doing, "doing");
+    appendRemaining(defaultState.done, done, "done");
+
+    return { todo, doing, done };
+  } catch (err) {
+    console.warn("Failed to restore overview board state", err);
+    return defaultState;
+  }
+}
+
+function rebuildBoard() {
+  const todo = props.summary.plannedToday.map((item, index) => ({
+    uid: `todo-${index}-${item.title}`,
+    title: item.title,
+    detail: item.detail,
+    meta: "待推进",
+    tone: "neutral" as Tone,
+    period: item.period,
+    tag: item.tag,
+    action: item.action,
+    finished: item.action === "completed"
+  }));
+
+  const doing = props.summary.pendingToday.map((item, index) => ({
+    uid: `doing-${index}-${item.title}`,
+    title: item.title,
+    detail: item.detail,
+    meta: item.meta,
+    tone: item.tone,
+    period: "进行中",
+    tag: "推进",
+    action: item.action,
+    finished: false
+  }));
+
+  const done = props.summary.completedToday.map((item, index) => ({
+    uid: `done-${index}-${item.title}`,
+    title: item.title,
+    detail: item.detail,
+    meta: item.meta,
+    tone: item.tone,
+    period: "已完成",
+    tag: "完成",
+    action: "completed",
+    finished: true
+  }));
+
+  const defaultState: KanbanBoardState = {
+    todo: sortTodoByTimePriority(todo),
+    doing,
+    done
+  };
+
+  const restoredState = restoreBoardState(defaultState);
+  todoCards.value = restoredState.todo;
+  doingCards.value = restoredState.doing;
+  doneCards.value = restoredState.done;
+}
+
+watch(
+  () => props.summary,
+  () => {
+    rebuildBoard();
+  },
+  { immediate: true }
+);
+
+function listByColumn(column: KanbanColumnKey) {
+  if (column === "todo") return todoCards.value;
+  if (column === "doing") return doingCards.value;
+  return doneCards.value;
+}
+
+function onCardDragStart(column: KanbanColumnKey, uid: string) {
+  draggingCard.value = { uid, from: column };
+}
+
+function onCardDragEnd() {
+  draggingCard.value = null;
+  dragOverColumn.value = null;
+  dragOverCardUid.value = null;
+  dragOverPlacement.value = null;
+}
+
+function onColumnDragOver(column: KanbanColumnKey) {
+  dragOverColumn.value = column;
+  dragOverCardUid.value = null;
+  dragOverPlacement.value = null;
+}
+
+function onCardDragOver(column: KanbanColumnKey, uid: string, event: DragEvent) {
+  dragOverColumn.value = column;
+  dragOverCardUid.value = uid;
+  const target = event.currentTarget as HTMLElement | null;
+  if (!target) {
+    dragOverPlacement.value = "before";
+    return;
+  }
+
+  const rect = target.getBoundingClientRect();
+  const middleY = rect.top + rect.height / 2;
+  const pointerY = event.clientY > 0 ? event.clientY : rect.top + rect.height / 2;
+  dragOverPlacement.value = pointerY >= middleY ? "after" : "before";
+}
+
+function applyCardStatusForColumn(card: KanbanCard, target: KanbanColumnKey) {
+  if (target === "done") {
+    card.finished = true;
+    card.action = "completed";
+    card.meta = "已完成";
+    card.tone = "positive";
+    return;
+  }
+
+  if (target === "doing") {
+    card.finished = false;
+    card.meta = card.meta === "已完成" ? "进行中" : card.meta;
+    card.action = card.action === "completed" ? "update_progress" : card.action;
+    return;
+  }
+
+  card.finished = false;
+  card.action = card.action === "completed" ? "complete_task" : card.action;
+  card.period = card.period || `${timeContext.value.label}优先`;
+  card.tag = card.tag || "计划";
+}
+
+function moveCardInList(list: KanbanCard[], fromUid: string, toUid: string, placement: "before" | "after") {
+  const fromIndex = list.findIndex((item) => item.uid === fromUid);
+  const toIndex = list.findIndex((item) => item.uid === toUid);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+    return false;
+  }
+
+  let insertIndex = placement === "after" ? toIndex + 1 : toIndex;
+  if (fromIndex < insertIndex) {
+    insertIndex -= 1;
+  }
+
+  if (insertIndex === fromIndex) {
+    return false;
+  }
+
+  const [card] = list.splice(fromIndex, 1);
+  list.splice(insertIndex, 0, card);
+  return true;
+}
+
+function dropToCard(target: KanbanColumnKey, targetUid: string) {
+  if (!draggingCard.value) return;
+
+  const { from, uid } = draggingCard.value;
+  const placement = dragOverPlacement.value || "before";
+  if (uid === targetUid) {
+    onCardDragEnd();
+    return;
+  }
+
+  if (from === target) {
+    const moved = moveCardInList(listByColumn(from), uid, targetUid, placement);
+    if (moved) {
+      saveBoardState();
+      showToast("已更新卡片顺序", "info");
+    }
+    onCardDragEnd();
+    return;
+  }
+
+  const fromList = listByColumn(from);
+  const toList = listByColumn(target);
+  const fromIndex = fromList.findIndex((item) => item.uid === uid);
+  const targetIndex = toList.findIndex((item) => item.uid === targetUid);
+  if (fromIndex < 0 || targetIndex < 0) {
+    onCardDragEnd();
+    return;
+  }
+
+  const [card] = fromList.splice(fromIndex, 1);
+  applyCardStatusForColumn(card, target);
+  const insertIndex = placement === "after" ? targetIndex + 1 : targetIndex;
+  toList.splice(insertIndex, 0, card);
+  saveBoardState();
+  showToast(`已移动到${target === "todo" ? "待完成" : target === "doing" ? "进行中" : "已完成"}列`);
+  onCardDragEnd();
+}
+
+function dropToColumn(target: KanbanColumnKey) {
+  if (!draggingCard.value) return;
+
+  const { from, uid } = draggingCard.value;
+  if (from === target) {
+    onCardDragEnd();
+    return;
+  }
+
+  const fromList = listByColumn(from);
+  const toList = listByColumn(target);
+  const cardIndex = fromList.findIndex((item) => item.uid === uid);
+  if (cardIndex < 0) {
+    onCardDragEnd();
+    return;
+  }
+
+  const [card] = fromList.splice(cardIndex, 1);
+  applyCardStatusForColumn(card, target);
+
+  toList.unshift(card);
+  saveBoardState();
+  showToast(`已移动到${target === "todo" ? "待完成" : target === "doing" ? "进行中" : "已完成"}列`);
+  onCardDragEnd();
+}
+
+function finishTodoQuick(uid: string) {
+  const cardIndex = todoCards.value.findIndex((item) => item.uid === uid);
+  if (cardIndex < 0) return;
+
+  const [card] = todoCards.value.splice(cardIndex, 1);
+  card.finished = true;
+  card.action = "completed";
+  card.meta = "已完成";
+  card.tone = "positive";
+  doneCards.value.unshift(card);
+  saveBoardState();
+  showToast("任务已标记完成");
+}
+
+const toast = ref<{ message: string; tone: "success" | "info" }>({
+  message: "",
+  tone: "success"
+});
+const toastVisible = ref(false);
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showToast(message: string, tone: "success" | "info" = "success") {
+  toast.value = { message, tone };
+  toastVisible.value = true;
+
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+  }
+
+  toastTimer = setTimeout(() => {
+    toastVisible.value = false;
+  }, 1600);
+}
+
+onUnmounted(() => {
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+  }
+});
+
+function toNumber(text: string) {
+  const cleaned = text.replace(/,/g, "");
+  const num = Number(cleaned);
+  return Number.isFinite(num) ? num : 0;
+}
+
+const waterProgress = computed(() => {
+  const metric = props.summary.metrics.find((item) => /饮水|补水|water/i.test(item.label));
+  if (metric) {
+    const pair = metric.value.match(/([\d.,]+)\s*\/\s*([\d.,]+)/);
+    if (pair) {
+      const current = toNumber(pair[1]);
+      const target = Math.max(toNumber(pair[2]), 1);
+      const percent = Math.max(0, Math.min(100, Math.round((current / target) * 100)));
+      return { current, target, percent };
+    }
+  }
+
+  const fallback = props.summary.complianceTable.find((item) => /水/.test(item.module));
+  if (fallback) {
+    const current = toNumber((fallback.actual.match(/[\d.,]+/) || ["0"])[0]);
+    const target = Math.max(toNumber((fallback.target.match(/[\d.,]+/) || ["1"])[0]), 1);
+    const percent = Math.max(0, Math.min(100, Math.round((current / target) * 100)));
+    return { current, target, percent };
+  }
+
+  return { current: 0, target: 2000, percent: 0 };
+});
+
+const ringCircumference = 2 * Math.PI * 24;
+const ringDashOffset = computed(() => ringCircumference * (1 - waterProgress.value.percent / 100));
+
 const interacting = ref("");
 
 // 模拟或真实互动对接
@@ -48,6 +469,7 @@ async function saveSleep() {
       sleepHours: sleepDuration.value
     });
     showSleepModal.value = false;
+    showToast("睡眠时长已更新");
     emit('refresh');
   } catch (err) {
     console.error('Failed to update sleep', err);
@@ -61,6 +483,7 @@ async function handleInteraction(action: string) {
     interacting.value = "water";
     try {
       await addWaterIntake({ amountMl: 200 });
+      showToast("已记录喝水 +200ml");
       emit('refresh'); // 触发重新拉取概览数据
     } finally {
       interacting.value = "";
@@ -71,9 +494,29 @@ async function handleInteraction(action: string) {
     emit("navigate", "diet");
   } else if (action === 'update_sleep') {
     showSleepModal.value = true;
+  } else if (action === "complete_task") {
+    showToast("任务已推进");
+  } else if (action === "update_progress") {
+    emit("navigate", "diet");
   } else if (action !== 'completed' && action !== 'none') {
     console.warn('Unknown action:', action);
   }
+}
+
+function isWaterRelatedCard(card: KanbanCard) {
+  const text = `${card.title} ${card.detail} ${card.meta} ${card.tag}`.toLowerCase();
+  if (card.action === "go_water" || card.action === "drink_water") {
+    return true;
+  }
+  return /水|补水|water/.test(text);
+}
+
+function handleUpdateProgressClick(card: KanbanCard) {
+  if (isWaterRelatedCard(card)) {
+    emit("navigate", "diet");
+    return;
+  }
+  handleInteraction(card.action || "update_progress");
 }
 </script>
 
@@ -88,8 +531,8 @@ async function handleInteraction(action: string) {
 
         <div class="hero__header">
           <div>
-            <h3>{{ summary.userName }}，{{ summary.momentumLabel }}</h3>
-            <p class="hero__headline">{{ summary.headline }}</p>
+            <h3>{{ summary.userName }}，{{ dynamicGreeting }}</h3>
+            <p class="hero__headline">{{ contextualHeadline }}</p>
           </div>
           <div class="hero__score">
             <strong>{{ summary.todayScore }}</strong>
@@ -114,21 +557,44 @@ async function handleInteraction(action: string) {
         </div>
 
         <!-- 互动：快捷记录按键与操作区 -->
-        <div class="hero__quick-actions" style="margin-top: 20px; display: flex; gap: 12px; align-items: center; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 20px;">
-           <span style="font-size: 0.85rem; color: var(--color-text-soft);">快捷打卡</span>
-           <button class="btn btn--water" :disabled="interacting === 'water'" @click="handleInteraction('drink_water')">🥤 {{ interacting === 'water' ? '记录中...' : '喝水 +200ml' }}</button>
-           <button class="btn btn--workout" @click="handleInteraction('start_workout')">🏃‍♂️ 开始训练</button>
+        <div class="hero__quick-actions">
+          <div class="hero__quick-actions-main">
+            <span class="hero__quick-actions-label">快捷打卡</span>
+            <button class="btn btn--water" :disabled="interacting === 'water'" @click="handleInteraction('drink_water')">
+              {{ interacting === 'water' ? '记录中...' : '喝水 +200ml' }}
+            </button>
+            <button class="btn btn--workout" @click="handleInteraction('start_workout')">开始训练</button>
+          </div>
+
+          <div class="water-ring">
+            <svg viewBox="0 0 60 60" class="water-ring__svg" aria-hidden="true">
+              <circle class="water-ring__bg" cx="30" cy="30" r="24"></circle>
+              <circle
+                class="water-ring__fg"
+                cx="30"
+                cy="30"
+                r="24"
+                :stroke-dasharray="ringCircumference"
+                :stroke-dashoffset="ringDashOffset"
+              ></circle>
+            </svg>
+            <div class="water-ring__text">
+              <strong>{{ waterProgress.percent }}%</strong>
+              <span>{{ waterProgress.current }} / {{ waterProgress.target }} ml</span>
+            </div>
+          </div>
         </div>
 
         <div class="hero__focus" style="margin-top: 16px;">
+          <span class="hero__focus-priority">{{ timeContext.label }}高优先任务 {{ priorityTodoCount }} 项</span>
           <span v-for="item in summary.focusModules" :key="item">{{ item }}</span>
         </div>
       </div>
 
       <div class="hero__action">
         <p class="eyebrow">Next Action</p>
-        <h4>{{ summary.nextReminder }}</h4>
-        <p>{{ summary.plannedToday[0]?.detail }}</p>
+        <h4>{{ topPriorityCard?.title || summary.nextReminder }}</h4>
+        <p>{{ topPriorityCard?.detail || summary.plannedToday[0]?.detail }}</p>
 
         <div class="hero__stamp-group">
           <span class="hero__stamp">档案同步：{{ updatedAtLabel }}</span>
@@ -146,8 +612,13 @@ async function handleInteraction(action: string) {
     </section>
 
     <!-- 转换：将今天原本堆叠的块改为看板列 (Kanban Board) 格式 -->
-    <section class="today-grid kanban-board" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
-      <article class="panel kanban-column kanban--todo">
+    <section class="today-grid kanban-board">
+      <article
+        class="panel kanban-column kanban--todo"
+        :class="{ 'kanban-column--dragover': dragOverColumn === 'todo' }"
+        @dragover.prevent="onColumnDragOver('todo')"
+        @drop.prevent="dropToColumn('todo')"
+      >
         <div class="panel__header">
           <div>
             <p class="eyebrow">To Do</p>
@@ -156,26 +627,45 @@ async function handleInteraction(action: string) {
         </div>
 
         <div class="plan-list kanban-list">
-          <div v-for="item in summary.plannedToday" :key="`${item.period}-${item.title}`" class="plan-card kanban-card">
+          <div
+            v-for="item in todoCards"
+            :key="item.uid"
+            class="plan-card kanban-card"
+            :class="{
+              'kanban-card--drag-target': dragOverCardUid === item.uid,
+              'kanban-card--drag-target-before': dragOverCardUid === item.uid && dragOverPlacement === 'before',
+              'kanban-card--drag-target-after': dragOverCardUid === item.uid && dragOverPlacement === 'after'
+            }"
+            draggable="true"
+            @dragstart="onCardDragStart('todo', item.uid)"
+            @dragover.prevent.stop="onCardDragOver('todo', item.uid, $event)"
+            @drop.prevent.stop="dropToCard('todo', item.uid)"
+            @dragend="onCardDragEnd"
+          >
             <div class="plan-card__top">
               <span class="tag tag--period">{{ item.period }}</span>
               <label class="tag tag--type">{{ item.tag }}</label>
             </div>
             <strong>{{ item.title }}</strong>
             <p>{{ item.detail }}</p>
-            <!-- 增加模拟完成的按键 -->
-            <button 
-              class="kanban-action-btn" 
+            <button
+              class="kanban-action-btn"
               :class="{ 'kanban-action-btn--completed': item.action === 'completed' }"
               :disabled="item.action === 'completed'"
-              @click="handleInteraction(item.action || 'complete_task')">
-              {{ item.action === 'completed' ? '✓ 已达标' : '✓ 去完成' }}
+              @click="finishTodoQuick(item.uid)"
+            >
+              {{ item.action === 'completed' ? '已达标' : '标记完成' }}
             </button>
           </div>
         </div>
       </article>
 
-      <article class="panel kanban-column kanban--doing">
+      <article
+        class="panel kanban-column kanban--doing"
+        :class="{ 'kanban-column--dragover': dragOverColumn === 'doing' }"
+        @dragover.prevent="onColumnDragOver('doing')"
+        @drop.prevent="dropToColumn('doing')"
+      >
         <div class="panel__header">
           <div>
             <p class="eyebrow">Pending / Doing</p>
@@ -184,17 +674,36 @@ async function handleInteraction(action: string) {
         </div>
 
         <div class="today-list kanban-list">
-          <div v-for="item in summary.pendingToday" :key="item.title" class="today-card kanban-card" :data-tone="item.tone">
+          <div
+            v-for="item in doingCards"
+            :key="item.uid"
+            class="today-card kanban-card"
+            :data-tone="item.tone"
+            :class="{
+              'kanban-card--drag-target': dragOverCardUid === item.uid,
+              'kanban-card--drag-target-before': dragOverCardUid === item.uid && dragOverPlacement === 'before',
+              'kanban-card--drag-target-after': dragOverCardUid === item.uid && dragOverPlacement === 'after'
+            }"
+            draggable="true"
+            @dragstart="onCardDragStart('doing', item.uid)"
+            @dragover.prevent.stop="onCardDragOver('doing', item.uid, $event)"
+            @drop.prevent.stop="dropToCard('doing', item.uid)"
+            @dragend="onCardDragEnd"
+          >
             <strong>{{ item.title }}</strong>
             <p>{{ item.detail }}</p>
             <small>{{ item.meta }}</small>
-            <!-- 增加进度更新输入口或按钮 -->
-            <button class="kanban-action-btn kanban-action-btn--update" @click="handleInteraction(item.action || 'update_progress')">✎ 更新进度</button>
+            <button class="kanban-action-btn kanban-action-btn--update" @click="handleUpdateProgressClick(item)">✎ 更新进度</button>
           </div>
         </div>
       </article>
 
-      <article class="panel kanban-column kanban--done">
+      <article
+        class="panel kanban-column kanban--done"
+        :class="{ 'kanban-column--dragover': dragOverColumn === 'done' }"
+        @dragover.prevent="onColumnDragOver('done')"
+        @drop.prevent="dropToColumn('done')"
+      >
         <div class="panel__header">
           <div>
             <p class="eyebrow">Done</p>
@@ -203,11 +712,26 @@ async function handleInteraction(action: string) {
         </div>
 
         <div class="today-list kanban-list">
-          <div v-for="item in summary.completedToday" :key="item.title" class="today-card kanban-card kanban-card--finished" :data-tone="item.tone">
+          <div
+            v-for="item in doneCards"
+            :key="item.uid"
+            class="today-card kanban-card kanban-card--finished"
+            :data-tone="item.tone"
+            :class="{
+              'kanban-card--drag-target': dragOverCardUid === item.uid,
+              'kanban-card--drag-target-before': dragOverCardUid === item.uid && dragOverPlacement === 'before',
+              'kanban-card--drag-target-after': dragOverCardUid === item.uid && dragOverPlacement === 'after'
+            }"
+            draggable="true"
+            @dragstart="onCardDragStart('done', item.uid)"
+            @dragover.prevent.stop="onCardDragOver('done', item.uid, $event)"
+            @drop.prevent.stop="dropToCard('done', item.uid)"
+            @dragend="onCardDragEnd"
+          >
             <strong>{{ item.title }}</strong>
             <p>{{ item.detail }}</p>
             <small>{{ item.meta }}</small>
-            <span class="kanban-card__stamp">💪 完成</span>
+            <span class="kanban-card__stamp">完成</span>
           </div>
         </div>
       </article>
@@ -339,6 +863,12 @@ async function handleInteraction(action: string) {
         </div>
       </div>
     </div>
+
+    <transition name="toast-fade">
+      <div v-if="toastVisible" class="action-toast" :data-tone="toast.tone">
+        {{ toast.message }}
+      </div>
+    </transition>
   </section>
 </template>
 
@@ -502,6 +1032,11 @@ async function handleInteraction(action: string) {
   margin-top: 18px;
 }
 
+.hero__focus .hero__focus-priority {
+  background: rgba(239, 200, 110, 0.22);
+  color: #614822;
+}
+
 .hero__focus span,
 .plan-card__top label {
   padding: 8px 12px;
@@ -516,6 +1051,76 @@ async function handleInteraction(action: string) {
   align-content: space-between;
   gap: 18px;
   padding: 22px;
+}
+
+.hero__quick-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding-top: 20px;
+  justify-content: space-between;
+}
+
+.hero__quick-actions-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hero__quick-actions-label {
+  font-size: 0.85rem;
+  color: var(--color-text-soft);
+}
+
+.water-ring {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(57, 87, 63, 0.12);
+}
+
+.water-ring__svg {
+  width: 54px;
+  height: 54px;
+}
+
+.water-ring__bg,
+.water-ring__fg {
+  fill: none;
+  stroke-width: 6;
+}
+
+.water-ring__bg {
+  stroke: rgba(57, 87, 63, 0.12);
+}
+
+.water-ring__fg {
+  stroke: #4f88ce;
+  stroke-linecap: round;
+  transform-origin: 50% 50%;
+  transform: rotate(-90deg);
+  transition: stroke-dashoffset 0.45s ease;
+}
+
+.water-ring__text {
+  display: grid;
+  gap: 2px;
+}
+
+.water-ring__text strong {
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.water-ring__text span {
+  font-size: 0.78rem;
+  color: var(--color-text-soft);
 }
 
 .hero__action h4 {
@@ -804,6 +1409,32 @@ async function handleInteraction(action: string) {
   position: relative;
 }
 
+.kanban-card[draggable="true"] {
+  cursor: grab;
+}
+
+.kanban-column--dragover {
+  border: 1px dashed rgba(67, 110, 80, 0.46);
+  background: rgba(228, 240, 231, 0.46);
+}
+
+.kanban-card--drag-target {
+  border-color: rgba(67, 110, 80, 0.55);
+  box-shadow: 0 0 0 2px rgba(67, 110, 80, 0.14);
+}
+
+.kanban-card--drag-target-before {
+  box-shadow:
+    inset 0 3px 0 rgba(50, 98, 67, 0.85),
+    0 0 0 2px rgba(67, 110, 80, 0.14);
+}
+
+.kanban-card--drag-target-after {
+  box-shadow:
+    inset 0 -3px 0 rgba(50, 98, 67, 0.85),
+    0 0 0 2px rgba(67, 110, 80, 0.14);
+}
+
 .kanban-card p {
   color: var(--color-text-soft);
   margin-top: 4px;
@@ -848,6 +1479,37 @@ async function handleInteraction(action: string) {
   transform: rotate(-5deg);
   opacity: 0.6;
 }
+
+.action-toast {
+  position: fixed;
+  right: 22px;
+  bottom: 20px;
+  z-index: 1200;
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 12px 26px rgba(24, 33, 27, 0.18);
+}
+
+.action-toast[data-tone="success"] {
+  background: #3a6c48;
+}
+
+.action-toast[data-tone="info"] {
+  background: #3f608f;
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: all 0.25s ease;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
 @media (max-width: 820px) {
   .hero__header,
   .hero__meta,
@@ -863,6 +1525,11 @@ async function handleInteraction(action: string) {
   .metrics,
   .load-chart {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero__quick-actions {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

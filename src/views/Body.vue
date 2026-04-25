@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive, watch, ref } from "vue";
-import type { BodyProfile, UserProfileRecord } from "../services/types";
+import type { BodyProfile, TrendSeriesPoint, TrendSummary, UserProfileRecord } from "../services/types";
 
 const isEditing = ref(false);
 
 const props = defineProps<{
   profile: BodyProfile;
   record: UserProfileRecord | null;
+  trendSummary?: TrendSummary | null;
   loading: boolean;
   saving: boolean;
 }>();
@@ -55,6 +56,191 @@ const form = reactive({
   habitSleep: "",
   habitDiet: "",
   habitExercise: ""
+});
+
+const saveNotice = ref<{ tone: "warning" | "success"; message: string } | null>(null);
+
+function toFiniteNumber(value: unknown) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : NaN;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (!normalized) return NaN;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+
+  return NaN;
+}
+
+function roundNumber(value: number, precision = 1) {
+  const factor = 10 ** precision;
+  return Math.round(value * factor) / factor;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function bmiToneByValue(value: number | null): "positive" | "warning" | "danger" {
+  if (value === null) return "positive";
+  if (value >= 18.5 && value < 24) return "positive";
+  if (value >= 24 && value < 28) return "warning";
+  return "danger";
+}
+
+function bmiLabelByValue(value: number | null) {
+  if (value === null) return "待完善";
+  if (value < 18.5) return "偏瘦";
+  if (value < 24) return "正常";
+  if (value < 28) return "超重";
+  return "肥胖";
+}
+
+const draftBmi = computed(() => {
+  const heightCm = toFiniteNumber(form.heightCm);
+  const weightKg = toFiniteNumber(form.currentWeightKg);
+  if (!Number.isFinite(heightCm) || !Number.isFinite(weightKg) || heightCm <= 0 || weightKg <= 0) {
+    return null;
+  }
+
+  return roundNumber(weightKg / (heightCm / 100) ** 2, 1);
+});
+
+const draftBmiTone = computed(() => bmiToneByValue(draftBmi.value));
+const draftBmiLabel = computed(() => bmiLabelByValue(draftBmi.value));
+
+const validationIssues = computed(() => {
+  const issues: string[] = [];
+
+  if (!form.nickname.trim()) {
+    issues.push("昵称不能为空");
+  }
+
+  const age = toFiniteNumber(form.age);
+  if (!Number.isFinite(age) || age < 10 || age > 100) {
+    issues.push("年龄需在 10-100 之间");
+  }
+
+  const heightCm = toFiniteNumber(form.heightCm);
+  if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) {
+    issues.push("身高需在 120-230 cm 之间");
+  }
+
+  const weightKg = toFiniteNumber(form.currentWeightKg);
+  if (!Number.isFinite(weightKg) || weightKg < 25 || weightKg > 300) {
+    issues.push("当前体重需在 25-300 kg 之间");
+  }
+
+  const targetWeightKg = toFiniteNumber(form.targetWeightKg);
+  if (!Number.isFinite(targetWeightKg) || targetWeightKg < 25 || targetWeightKg > 250) {
+    issues.push("目标体重需在 25-250 kg 之间");
+  }
+
+  const bodyFatRate = form.bodyFatRate === "" ? null : toFiniteNumber(form.bodyFatRate);
+  if (bodyFatRate !== null && (!Number.isFinite(bodyFatRate) || bodyFatRate < 3 || bodyFatRate > 70)) {
+    issues.push("体脂率建议填写在 3%-70% 区间");
+  }
+
+  const targetBodyFatRate = form.targetBodyFatRate === "" ? null : toFiniteNumber(form.targetBodyFatRate);
+  if (targetBodyFatRate !== null && (!Number.isFinite(targetBodyFatRate) || targetBodyFatRate < 3 || targetBodyFatRate > 65)) {
+    issues.push("目标体脂建议填写在 3%-65% 区间");
+  }
+
+  const weeklyWorkoutTarget = toFiniteNumber(form.weeklyWorkoutTarget);
+  if (!Number.isFinite(weeklyWorkoutTarget) || weeklyWorkoutTarget < 0 || weeklyWorkoutTarget > 14) {
+    issues.push("每周训练目标需在 0-14 次之间");
+  }
+
+  const dailyCalorieTarget = toFiniteNumber(form.dailyCalorieTarget);
+  if (!Number.isFinite(dailyCalorieTarget) || dailyCalorieTarget < 1000 || dailyCalorieTarget > 5000) {
+    issues.push("每日热量目标需在 1000-5000 kcal 之间");
+  }
+
+  const sleepTargetHours = toFiniteNumber(form.sleepTargetHours);
+  if (!Number.isFinite(sleepTargetHours) || sleepTargetHours < 4 || sleepTargetHours > 12) {
+    issues.push("睡眠目标建议填写在 4-12 小时");
+  }
+
+  return issues;
+});
+
+const canSubmit = computed(() => validationIssues.value.length === 0);
+
+const bodyTrendSeries = computed(() => {
+  const series = props.trendSummary?.series ?? [];
+  if (!series.length) {
+    return [] as TrendSeriesPoint[];
+  }
+  return series.slice(-10);
+});
+
+function buildSparklinePath(values: number[], width = 280, height = 84, padding = 8) {
+  if (!values.length) return "";
+  if (values.length === 1) {
+    const y = Math.round(height / 2);
+    return `M ${padding} ${y} L ${width - padding} ${y}`;
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const innerWidth = width - padding * 2;
+  const innerHeight = height - padding * 2;
+
+  return values
+    .map((value, index) => {
+      const x = padding + (index / (values.length - 1)) * innerWidth;
+      const ratio = (value - min) / span;
+      const y = padding + (1 - ratio) * innerHeight;
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+const weightTrendValues = computed(() => bodyTrendSeries.value.map((item) => Number(item.weightKg)));
+const bodyFatTrendValues = computed(() => bodyTrendSeries.value.map((item) => Number(item.bodyFatRate)));
+const weightSparkPath = computed(() => buildSparklinePath(weightTrendValues.value));
+const bodyFatSparkPath = computed(() => buildSparklinePath(bodyFatTrendValues.value));
+
+const weightTrendDelta = computed(() => {
+  const values = weightTrendValues.value;
+  if (values.length < 2) return 0;
+  return roundNumber(values[values.length - 1] - values[0], 1);
+});
+
+const bodyFatTrendDelta = computed(() => {
+  const values = bodyFatTrendValues.value;
+  if (values.length < 2) return 0;
+  return roundNumber(values[values.length - 1] - values[0], 1);
+});
+
+const bodyMiniCards = computed(() => {
+  const trendReady = bodyTrendSeries.value.length >= 2;
+  const latestLabel = bodyTrendSeries.value[bodyTrendSeries.value.length - 1]?.label ?? "当前";
+
+  return [
+    {
+      key: "weight",
+      title: "体重变化",
+      latest: `${props.profile.weightKg.toFixed(1)} kg`,
+      delta: trendReady ? `${weightTrendDelta.value > 0 ? "+" : ""}${weightTrendDelta.value.toFixed(1)} kg` : "样本不足",
+      tone: weightTrendDelta.value <= 0 ? "positive" : "warning",
+      hint: trendReady ? `近 ${bodyTrendSeries.value.length} 天（截止 ${latestLabel}）` : "保存几天数据后会自动生成曲线",
+      path: weightSparkPath.value
+    },
+    {
+      key: "body-fat",
+      title: "体脂变化",
+      latest: `${props.profile.bodyFatRate ?? "--"}%`,
+      delta: trendReady ? `${bodyFatTrendDelta.value > 0 ? "+" : ""}${bodyFatTrendDelta.value.toFixed(1)}%` : "样本不足",
+      tone: bodyFatTrendDelta.value <= 0 ? "positive" : "warning",
+      hint: trendReady ? `近 ${bodyTrendSeries.value.length} 天（截止 ${latestLabel}）` : "保存几天数据后会自动生成曲线",
+      path: bodyFatSparkPath.value
+    }
+  ] as const;
 });
 
 watch(
@@ -121,12 +307,8 @@ const weightProgressLabel = computed(() => {
 });
 
 const bmiTone = computed(() => {
-  const bmi = props.profile.bmi ?? 0;
-  if (!bmi) return "positive";
-  if (bmi >= 18.5 && bmi < 24) return "positive";
-  if (bmi >= 24 && bmi < 28) return "warning";
-  if (bmi >= 28) return "danger";
-  return "warning"; // < 18.5
+  const bmi = props.profile.bmi;
+  return bmiToneByValue(bmi);
 });
 
 const bodyFatTone = computed(() => {
@@ -186,19 +368,30 @@ const archiveRows = computed(() => [
 ]);
 
 function handleSave() {
+  if (!canSubmit.value) {
+    saveNotice.value = {
+      tone: "warning",
+      message: validationIssues.value[0] ?? "请先修正输入后再保存"
+    };
+    return;
+  }
+
   isEditing.value = false;
+  saveNotice.value = { tone: "success", message: "档案已提交，正在同步到数据库..." };
   emit("save", {
     nickname: form.nickname.trim(),
-    age: Number(form.age),
+    age: Math.round(clamp(toFiniteNumber(form.age), 10, 100)),
     gender: form.gender.trim(),
-    heightCm: Number(form.heightCm),
-    currentWeightKg: Number(form.currentWeightKg),
-    bodyFatRate: form.bodyFatRate === "" ? null : Number(form.bodyFatRate),
-    targetWeightKg: Number(form.targetWeightKg),
-    targetBodyFatRate: form.targetBodyFatRate === "" ? null : Number(form.targetBodyFatRate),
-    weeklyWorkoutTarget: Number(form.weeklyWorkoutTarget),
-    dailyCalorieTarget: Number(form.dailyCalorieTarget),
-    sleepTargetHours: Number(form.sleepTargetHours),
+    heightCm: roundNumber(clamp(toFiniteNumber(form.heightCm), 120, 230), 1),
+    currentWeightKg: roundNumber(clamp(toFiniteNumber(form.currentWeightKg), 25, 300), 1),
+    bodyFatRate:
+      form.bodyFatRate === "" ? null : roundNumber(clamp(toFiniteNumber(form.bodyFatRate), 3, 70), 1),
+    targetWeightKg: roundNumber(clamp(toFiniteNumber(form.targetWeightKg), 25, 250), 1),
+    targetBodyFatRate:
+      form.targetBodyFatRate === "" ? null : roundNumber(clamp(toFiniteNumber(form.targetBodyFatRate), 3, 65), 1),
+    weeklyWorkoutTarget: Math.round(clamp(toFiniteNumber(form.weeklyWorkoutTarget), 0, 14)),
+    dailyCalorieTarget: Math.round(clamp(toFiniteNumber(form.dailyCalorieTarget), 1000, 5000)),
+    sleepTargetHours: roundNumber(clamp(toFiniteNumber(form.sleepTargetHours), 4, 12), 1),
     workStyle: form.workStyle.trim(),
     stressLevel: form.stressLevel.trim(),
     smokingStatus: form.smokingStatus.trim(),
@@ -333,6 +526,35 @@ function handleSave() {
           </div>
         </article>
 
+        <article class="panel">
+          <div class="panel__header panel__header--compact">
+            <div>
+              <p class="eyebrow">Mini Trends</p>
+              <h4>近期指标微型图表</h4>
+            </div>
+            <span class="panel__badge">趋势来自追踪模块最近 10 天</span>
+          </div>
+
+          <div class="mini-trends">
+            <article v-for="item in bodyMiniCards" :key="item.key" class="mini-trend-card" :data-tone="item.tone">
+              <div class="mini-trend-card__head">
+                <span>{{ item.title }}</span>
+                <strong>{{ item.latest }}</strong>
+              </div>
+
+              <svg v-if="item.path" class="mini-trend-card__chart" viewBox="0 0 280 84" preserveAspectRatio="none" aria-hidden="true">
+                <path class="mini-trend-card__path" :d="item.path"></path>
+              </svg>
+              <div v-else class="mini-trend-card__empty">暂无足够历史数据，保存后会自动生成变化曲线。</div>
+
+              <div class="mini-trend-card__meta">
+                <span>{{ item.hint }}</span>
+                <em>{{ item.delta }}</em>
+              </div>
+            </article>
+          </div>
+        </article>
+
         <article class="panel panel--table">
           <div class="panel__header panel__header--compact">
             <div>
@@ -380,6 +602,14 @@ function handleSave() {
             </button>
           </div>
         </div>
+
+        <div v-if="saveNotice" class="save-notice" :data-tone="saveNotice.tone">
+          {{ saveNotice.message }}
+        </div>
+
+        <ul v-if="validationIssues.length" class="validation-list">
+          <li v-for="issue in validationIssues" :key="issue">{{ issue }}</li>
+        </ul>
 
         <div v-if="loading" class="loading">
           <span></span>
@@ -452,9 +682,9 @@ function handleSave() {
 
               <label class="field field--readonly">
                 <span>当前评估</span>
-                <div class="field-card">
-                  <strong>BMI {{ profile.bmi ?? "--" }}</strong>
-                  <small>BMR {{ profile.bmr ?? "--" }} kcal</small>
+                <div class="field-card" :data-tone="draftBmiTone">
+                  <strong>BMI {{ draftBmi ?? "--" }} · {{ draftBmiLabel }}</strong>
+                  <small>BMR {{ profile.bmr ?? "--" }} kcal（保存后同步）</small>
                 </div>
               </label>
             </div>
@@ -1025,6 +1255,34 @@ function handleSave() {
   gap: 12px;
 }
 
+.save-notice {
+  margin-top: 4px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.save-notice[data-tone="warning"] {
+  color: #7a4c15;
+  background: rgba(246, 228, 195, 0.8);
+  border: 1px solid rgba(219, 164, 87, 0.35);
+}
+
+.save-notice[data-tone="success"] {
+  color: #1f5b37;
+  background: rgba(219, 238, 222, 0.86);
+  border: 1px solid rgba(71, 153, 95, 0.28);
+}
+
+.validation-list {
+  margin: 0;
+  padding: 0 0 0 18px;
+  display: grid;
+  gap: 6px;
+  color: #9c3d31;
+}
+
 .btn {
   border: 0;
   border-radius: 16px;
@@ -1041,7 +1299,7 @@ function handleSave() {
 
 .btn--primary:disabled {
   opacity: 0.72;
-  cursor: wait;
+  cursor: not-allowed;
 }
 
 .btn--secondary {
@@ -1179,6 +1437,113 @@ function handleSave() {
   color: var(--color-text);
 }
 
+.field-card[data-tone="positive"] {
+  background: linear-gradient(180deg, rgba(225, 243, 226, 0.86), rgba(243, 251, 244, 0.98));
+  border-color: rgba(76, 167, 101, 0.24);
+}
+
+.field-card[data-tone="warning"] {
+  background: linear-gradient(180deg, rgba(247, 234, 207, 0.86), rgba(255, 247, 235, 0.98));
+  border-color: rgba(206, 141, 56, 0.24);
+}
+
+.field-card[data-tone="danger"] {
+  background: linear-gradient(180deg, rgba(249, 226, 224, 0.88), rgba(255, 243, 242, 0.98));
+  border-color: rgba(205, 96, 82, 0.24);
+}
+
+.mini-trends {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mini-trend-card {
+  border-radius: 18px;
+  padding: 14px;
+  border: 1px solid rgba(62, 90, 70, 0.1);
+  background: linear-gradient(180deg, rgba(239, 245, 238, 0.76), rgba(250, 252, 249, 0.96));
+  display: grid;
+  gap: 10px;
+}
+
+.mini-trend-card[data-tone="warning"] {
+  background: linear-gradient(180deg, rgba(252, 241, 225, 0.9), rgba(255, 250, 242, 0.98));
+}
+
+.mini-trend-card__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mini-trend-card__head span {
+  color: var(--color-text-soft);
+  font-size: 0.9rem;
+}
+
+.mini-trend-card__head strong {
+  color: var(--color-text);
+  font-size: 1.2rem;
+}
+
+.mini-trend-card__chart {
+  width: 100%;
+  height: 84px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(70, 98, 77, 0.1);
+}
+
+.mini-trend-card__path {
+  fill: none;
+  stroke: #3a6f52;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mini-trend-card[data-tone="warning"] .mini-trend-card__path {
+  stroke: #b77b3f;
+}
+
+.mini-trend-card__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mini-trend-card__meta span {
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
+}
+
+.mini-trend-card__meta em {
+  font-style: normal;
+  font-weight: 700;
+  color: #2a5c40;
+}
+
+.mini-trend-card[data-tone="warning"] .mini-trend-card__meta em {
+  color: #a75f1d;
+}
+
+.mini-trend-card__empty {
+  min-height: 84px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px dashed rgba(70, 98, 77, 0.2);
+  color: var(--color-text-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 10px;
+  line-height: 1.5;
+}
+
 .field-card small {
   color: var(--color-text-soft);
 }
@@ -1232,7 +1597,8 @@ function handleSave() {
   .fields--four,
   .fields--three,
   .fields--two,
-  .metrics {
+  .metrics,
+  .mini-trends {
     grid-template-columns: 1fr;
   }
 

@@ -1,468 +1,837 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
-import { addDietEntry, addWaterIntake, deleteDietEntry, updateDietEntry } from "../services/backend/diet";
-import type { CreateDietEntryInput, DietSummary, MealItem, UpdateDietEntryInput } from "../services/types";
+import { computed, onUnmounted, reactive, ref, watch } from "vue";
+import type { DietSummary } from "../services/types";
+
+type MealType = "早餐" | "午餐" | "晚餐" | "加餐";
+type MealFilter = "全部" | MealType;
+type TipTone = "positive" | "neutral" | "warning";
+
+interface NutritionTarget {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  water: number;
+}
+
+interface FoodRecord {
+  id: number;
+  mealType: MealType;
+  foodName: string;
+  portionLabel: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  recordedAt: string;
+}
+
+interface MealPlan {
+  id: string;
+  mealType: MealType;
+  title: string;
+  portionLabel: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  reason: string;
+}
+
+interface NewFoodForm {
+  mealType: MealType;
+  foodName: string;
+  portionLabel: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+}
 
 const props = defineProps<{
   summary: DietSummary;
 }>();
 
-const localSummary = ref<DietSummary>(props.summary);
-const saving = ref(false);
-const activeMealType = ref<"全部" | string>("全部");
-const editingMealId = ref<number | null>(null);
+const STORAGE_KEYS = {
+  records: "lightbalance:diet:records",
+  water: "lightbalance:diet:water",
+  target: "lightbalance:diet:target",
+  filter: "lightbalance:diet:filter"
+} as const;
 
-const quickMeals: CreateDietEntryInput[] = [
-  { mealType: "早餐", foodName: "高蛋白酸奶燕麦杯", portionLabel: "1 份", calories: 320, protein: 20, carbs: 36, fat: 9 },
-  { mealType: "午餐", foodName: "鸡胸糙米能量碗", portionLabel: "1 盒", calories: 520, protein: 38, carbs: 52, fat: 14 },
-  { mealType: "晚餐", foodName: "香煎鳕鱼时蔬盘", portionLabel: "1 盘", calories: 430, protein: 35, carbs: 24, fat: 16 },
-  { mealType: "加餐", foodName: "香蕉花生酱吐司", portionLabel: "1 份", calories: 260, protein: 9, carbs: 31, fat: 11 }
+const mealTypes: MealType[] = ["早餐", "午餐", "晚餐", "加餐"];
+const mealFilters: MealFilter[] = ["全部", ...mealTypes];
+
+const defaultNutritionTarget: NutritionTarget = {
+  calories: 1800,
+  protein: 100,
+  carbs: 230,
+  fat: 55,
+  fiber: 25,
+  water: 2000
+};
+
+const defaultMealPlans: MealPlan[] = [
+  {
+    id: "breakfast-oat",
+    mealType: "早餐",
+    title: "希腊酸奶燕麦碗",
+    portionLabel: "燕麦 45g + 酸奶 180g + 蓝莓",
+    calories: 390,
+    protein: 26,
+    carbs: 52,
+    fat: 9,
+    fiber: 7,
+    reason: "早餐安排优质蛋白和慢消化碳水，能稳定上午饱腹感，也便于控制全天热量。"
+  },
+  {
+    id: "lunch-chicken",
+    mealType: "午餐",
+    title: "鸡胸藜麦能量盘",
+    portionLabel: "鸡胸 130g + 藜麦 90g + 时蔬",
+    calories: 540,
+    protein: 42,
+    carbs: 62,
+    fat: 13,
+    fiber: 8,
+    reason: "午餐适当提高碳水和蛋白质，有利于下午学习与训练前能量供应。"
+  },
+  {
+    id: "dinner-fish",
+    mealType: "晚餐",
+    title: "清蒸鱼配杂粮饭",
+    portionLabel: "鱼肉 130g + 杂粮饭 80g + 西兰花",
+    calories: 455,
+    protein: 36,
+    carbs: 45,
+    fat: 12,
+    fiber: 6,
+    reason: "晚餐保持清淡但不极端节食，兼顾蛋白质修复和足量蔬菜。"
+  },
+  {
+    id: "snack-soy",
+    mealType: "加餐",
+    title: "无糖豆浆坚果加餐",
+    portionLabel: "豆浆 250ml + 坚果 12g",
+    calories: 210,
+    protein: 12,
+    carbs: 15,
+    fat: 11,
+    fiber: 3,
+    reason: "加餐用小份量补充蛋白和健康脂肪，减少晚餐前过度饥饿。"
+  }
 ];
 
-const form = reactive<CreateDietEntryInput>({
-  mealType: "加餐",
-  foodName: "",
-  portionLabel: "1 份",
-  calories: 180,
-  protein: 12,
-  carbs: 18,
-  fat: 6
-});
-
-watch(
-  () => props.summary,
-  (value) => {
-    localSummary.value = value;
-  }
+const fallbackRecords = computed<FoodRecord[]>(() =>
+  props.summary.meals.map((meal) => ({
+    id: meal.id,
+    mealType: normalizeMealType(meal.mealType),
+    foodName: meal.foodName,
+    portionLabel: meal.portionLabel,
+    calories: normalizeNumber(meal.calories),
+    protein: normalizeNumber(meal.protein),
+    carbs: normalizeNumber(meal.carbs),
+    fat: normalizeNumber(meal.fat),
+    fiber: 0,
+    recordedAt: meal.recordedAt
+  }))
 );
 
-const calorieProgress = computed(() => {
-  if (localSummary.value.calorieTarget <= 0) {
-    return 0;
-  }
+const nutritionTarget = reactive<NutritionTarget>({ ...defaultNutritionTarget });
+const foodRecords = ref<FoodRecord[]>([]);
+const waterIntake = ref(0);
+const selectedMealFilter = ref<MealFilter>("全部");
+const lastAddedPlanId = ref("");
+const formError = ref("");
+const toast = ref("");
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-  return Math.min((localSummary.value.todayCalories / localSummary.value.calorieTarget) * 100, 100);
+const form = reactive<NewFoodForm>({
+  mealType: "早餐",
+  foodName: "",
+  portionLabel: "1 份",
+  calories: 300,
+  protein: 20,
+  carbs: 35,
+  fat: 8,
+  fiber: 4
 });
 
-const waterProgress = computed(() => {
-  if (localSummary.value.waterTargetMl <= 0) {
-    return 0;
-  }
+loadDietState();
 
-  return Math.min((localSummary.value.waterIntakeMl / localSummary.value.waterTargetMl) * 100, 100);
-});
+const consumedNutrition = computed(() =>
+  foodRecords.value.reduce(
+    (total, item) => ({
+      calories: total.calories + normalizeNumber(item.calories),
+      protein: total.protein + normalizeNumber(item.protein),
+      carbs: total.carbs + normalizeNumber(item.carbs),
+      fat: total.fat + normalizeNumber(item.fat),
+      fiber: total.fiber + normalizeNumber(item.fiber),
+      water: waterIntake.value
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, water: waterIntake.value }
+  )
+);
 
-const macros = computed(() => [
+const remainingNutrition = computed(() => ({
+  calories: Math.max(nutritionTarget.calories - consumedNutrition.value.calories, 0),
+  protein: Math.max(nutritionTarget.protein - consumedNutrition.value.protein, 0),
+  carbs: Math.max(nutritionTarget.carbs - consumedNutrition.value.carbs, 0),
+  fat: Math.max(nutritionTarget.fat - consumedNutrition.value.fat, 0),
+  fiber: Math.max(nutritionTarget.fiber - consumedNutrition.value.fiber, 0),
+  water: Math.max(nutritionTarget.water - waterIntake.value, 0)
+}));
+
+const nutritionCards = computed(() => [
   {
+    key: "calories",
+    label: "热量",
+    value: consumedNutrition.value.calories,
+    target: nutritionTarget.calories,
+    unit: "kcal",
+    tone: consumedNutrition.value.calories > nutritionTarget.calories ? "warning" : "neutral"
+  },
+  {
+    key: "protein",
     label: "蛋白质",
-    value: localSummary.value.protein,
-    target: localSummary.value.proteinTarget,
-    tone: localSummary.value.protein >= localSummary.value.proteinTarget ? "positive" : "neutral"
+    value: consumedNutrition.value.protein,
+    target: nutritionTarget.protein,
+    unit: "g",
+    tone: consumedNutrition.value.protein >= nutritionTarget.protein ? "positive" : "neutral"
   },
   {
+    key: "carbs",
     label: "碳水",
-    value: localSummary.value.carbs,
-    target: localSummary.value.carbsTarget,
-    tone: localSummary.value.carbs > localSummary.value.carbsTarget ? "warning" : "neutral"
+    value: consumedNutrition.value.carbs,
+    target: nutritionTarget.carbs,
+    unit: "g",
+    tone: consumedNutrition.value.carbs > nutritionTarget.carbs ? "warning" : "neutral"
   },
   {
+    key: "fat",
     label: "脂肪",
-    value: localSummary.value.fat,
-    target: localSummary.value.fatTarget,
-    tone: localSummary.value.fat > localSummary.value.fatTarget ? "warning" : "neutral"
+    value: consumedNutrition.value.fat,
+    target: nutritionTarget.fat,
+    unit: "g",
+    tone: consumedNutrition.value.fat > nutritionTarget.fat ? "warning" : "neutral"
+  },
+  {
+    key: "fiber",
+    label: "膳食纤维",
+    value: consumedNutrition.value.fiber,
+    target: nutritionTarget.fiber,
+    unit: "g",
+    tone: consumedNutrition.value.fiber >= nutritionTarget.fiber ? "positive" : "neutral"
+  },
+  {
+    key: "water",
+    label: "饮水",
+    value: waterIntake.value,
+    target: nutritionTarget.water,
+    unit: "ml",
+    tone: waterIntake.value >= nutritionTarget.water ? "positive" : "neutral"
   }
 ]);
 
-const mealTypes = computed(() => ["全部", ...new Set(localSummary.value.meals.map((item) => item.mealType))]);
-
-const filteredMeals = computed(() => {
-  if (activeMealType.value === "全部") {
-    return localSummary.value.meals;
+const filteredRecords = computed(() => {
+  if (selectedMealFilter.value === "全部") {
+    return foodRecords.value;
   }
 
-  return localSummary.value.meals.filter((item) => item.mealType === activeMealType.value);
+  return foodRecords.value.filter((item) => item.mealType === selectedMealFilter.value);
 });
 
-function progressWidth(value: number, target: number) {
-  if (target <= 0) {
-    return "0%";
+const mealStats = computed(() =>
+  mealTypes.map((mealType) => {
+    const records = foodRecords.value.filter((item) => item.mealType === mealType);
+    return {
+      mealType,
+      count: records.length,
+      calories: records.reduce((sum, item) => sum + normalizeNumber(item.calories), 0)
+    };
+  })
+);
+
+const supplementTips = computed(() => {
+  const tips: { title: string; detail: string; tone: TipTone }[] = [];
+  const consumed = consumedNutrition.value;
+  const remaining = remainingNutrition.value;
+
+  if (remaining.protein > 15) {
+    tips.push({
+      title: "蛋白质仍需补足",
+      detail: `还差约 ${remaining.protein} g，可优先选择鸡蛋、鱼虾、豆腐、低脂奶等优质蛋白，避免只用高油食物补足。`,
+      tone: "neutral"
+    });
   }
 
-  return `${Math.max(6, Math.min((value / target) * 100, 100))}%`;
+  if (remaining.carbs > 45) {
+    tips.push({
+      title: "碳水不足会影响精力",
+      detail: `还差约 ${remaining.carbs} g 碳水，下一餐可加入杂粮饭、燕麦、玉米或土豆，帮助维持学习和运动表现。`,
+      tone: "neutral"
+    });
+  }
+
+  if (consumed.fat > nutritionTarget.fat) {
+    tips.push({
+      title: "脂肪摄入略高",
+      detail: "今日脂肪已超过目标，晚些时候建议以清蒸、炖煮和蔬菜为主，少加坚果、油炸和奶油类食物。",
+      tone: "warning"
+    });
+  }
+
+  if (remaining.fiber > 6) {
+    tips.push({
+      title: "膳食纤维还有空间",
+      detail: `还差约 ${remaining.fiber} g 膳食纤维，可通过深色蔬菜、豆类、浆果或全谷物补充，注意循序渐进。`,
+      tone: "neutral"
+    });
+  }
+
+  if (remaining.water > 0) {
+    tips.push({
+      title: "饮水需要分次完成",
+      detail: `还差 ${remaining.water} ml，建议分成 2 到 4 次补水，不必一次性喝完。`,
+      tone: remaining.water > 900 ? "warning" : "neutral"
+    });
+  }
+
+  if (consumed.calories < nutritionTarget.calories * 0.72) {
+    tips.push({
+      title: "热量偏低",
+      detail: "当前摄入热量明显低于目标，减重也不建议长期过度节食，可用主食、蛋白质和蔬菜组合补足。",
+      tone: "warning"
+    });
+  } else if (consumed.calories > nutritionTarget.calories) {
+    tips.push({
+      title: "热量略超目标",
+      detail: "今天热量已经超过目标，后续餐次保持清淡即可，不需要用极端方式抵消。",
+      tone: "warning"
+    });
+  }
+
+  if (tips.length === 0) {
+    tips.push({
+      title: "今日营养结构较均衡",
+      detail: "热量、宏量营养和饮水都接近目标，可以保持当前节奏，晚餐注意清淡和足量蔬菜。",
+      tone: "positive"
+    });
+  }
+
+  return tips;
+});
+
+const gapRows = computed(() => [
+  buildGapRow("热量", consumedNutrition.value.calories, nutritionTarget.calories, remainingNutrition.value.calories, "kcal"),
+  buildGapRow("蛋白质", consumedNutrition.value.protein, nutritionTarget.protein, remainingNutrition.value.protein, "g"),
+  buildGapRow("碳水", consumedNutrition.value.carbs, nutritionTarget.carbs, remainingNutrition.value.carbs, "g"),
+  buildGapRow("脂肪", consumedNutrition.value.fat, nutritionTarget.fat, remainingNutrition.value.fat, "g"),
+  buildGapRow("膳食纤维", consumedNutrition.value.fiber, nutritionTarget.fiber, remainingNutrition.value.fiber, "g"),
+  buildGapRow("饮水", waterIntake.value, nutritionTarget.water, remainingNutrition.value.water, "ml")
+]);
+
+watch(
+  [foodRecords, waterIntake, selectedMealFilter, nutritionTarget],
+  () => {
+    saveDietState();
+  },
+  { deep: true }
+);
+
+function loadDietState() {
+  const storedTarget = readJson<Partial<NutritionTarget>>(STORAGE_KEYS.target, {});
+  Object.assign(nutritionTarget, sanitizeTarget({ ...defaultNutritionTarget, ...storedTarget }));
+
+  const storedRecords = readJson<FoodRecord[] | null>(STORAGE_KEYS.records, null);
+  const initialRecords = Array.isArray(storedRecords) ? storedRecords : fallbackRecords.value;
+  foodRecords.value = initialRecords.map(sanitizeRecord).filter((item): item is FoodRecord => item !== null);
+
+  waterIntake.value = normalizeNumber(readJson<number>(STORAGE_KEYS.water, props.summary.waterIntakeMl || 0));
+
+  const storedFilter = readJson<MealFilter>(STORAGE_KEYS.filter, "全部");
+  selectedMealFilter.value = mealFilters.includes(storedFilter) ? storedFilter : "全部";
 }
 
-function formatRecordedAt(value: string) {
+function saveDietState() {
+  localStorage.setItem(STORAGE_KEYS.records, JSON.stringify(foodRecords.value));
+  localStorage.setItem(STORAGE_KEYS.water, JSON.stringify(waterIntake.value));
+  localStorage.setItem(STORAGE_KEYS.target, JSON.stringify({ ...nutritionTarget }));
+  localStorage.setItem(STORAGE_KEYS.filter, JSON.stringify(selectedMealFilter.value));
+}
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch (err) {
+    console.warn(`Failed to parse ${key}`, err);
+    return fallback;
+  }
+}
+
+function normalizeMealType(value: string): MealType {
+  return mealTypes.includes(value as MealType) ? (value as MealType) : "加餐";
+}
+
+function normalizeNumber(value: unknown, fallback = 0) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? Math.max(numberValue, 0) : fallback;
+}
+
+function sanitizeTarget(target: NutritionTarget): NutritionTarget {
+  return {
+    calories: Math.max(Math.round(normalizeNumber(target.calories, defaultNutritionTarget.calories)), 1),
+    protein: Math.max(Math.round(normalizeNumber(target.protein, defaultNutritionTarget.protein)), 1),
+    carbs: Math.max(Math.round(normalizeNumber(target.carbs, defaultNutritionTarget.carbs)), 1),
+    fat: Math.max(Math.round(normalizeNumber(target.fat, defaultNutritionTarget.fat)), 1),
+    fiber: Math.max(Math.round(normalizeNumber(target.fiber, defaultNutritionTarget.fiber)), 1),
+    water: Math.max(Math.round(normalizeNumber(target.water, defaultNutritionTarget.water)), 1)
+  };
+}
+
+function sanitizeRecord(record: Partial<FoodRecord>): FoodRecord | null {
+  const foodName = String(record.foodName ?? "").trim();
+  if (!foodName) return null;
+
+  return {
+    id: Number.isFinite(Number(record.id)) ? Number(record.id) : Date.now(),
+    mealType: normalizeMealType(String(record.mealType ?? "")),
+    foodName,
+    portionLabel: String(record.portionLabel ?? "1 份").trim() || "1 份",
+    calories: normalizeNumber(record.calories),
+    protein: normalizeNumber(record.protein),
+    carbs: normalizeNumber(record.carbs),
+    fat: normalizeNumber(record.fat),
+    fiber: normalizeNumber(record.fiber),
+    recordedAt: String(record.recordedAt ?? new Date().toISOString())
+  };
+}
+
+function safePercent(value: number, target: number) {
+  if (!Number.isFinite(value) || !Number.isFinite(target) || target <= 0) {
+    return 0;
+  }
+
+  return Math.min(Math.max((Math.max(value, 0) / target) * 100, 0), 100);
+}
+
+function progressWidth(value: number, target: number) {
+  return `${safePercent(value, target)}%`;
+}
+
+function buildGapRow(label: string, value: number, target: number, remaining: number, unit: string) {
+  const overflow = Math.max(value - target, 0);
+  return {
+    label,
+    value,
+    target,
+    unit,
+    progress: safePercent(value, target),
+    status: overflow > 0 ? `略超 ${Math.round(overflow)} ${unit}` : remaining <= 0 ? "已达标" : `还缺 ${Math.round(remaining)} ${unit}`,
+    tone: overflow > 0 ? "warning" : remaining <= 0 ? "positive" : "neutral"
+  };
+}
+
+function addPlanToRecords(plan: MealPlan) {
+  addFoodRecord({
+    mealType: plan.mealType,
+    foodName: plan.title,
+    portionLabel: plan.portionLabel,
+    calories: plan.calories,
+    protein: plan.protein,
+    carbs: plan.carbs,
+    fat: plan.fat,
+    fiber: plan.fiber
+  });
+  lastAddedPlanId.value = plan.id;
+  selectedMealFilter.value = "全部";
+  showToast(`${plan.title} 已加入今日记录`);
+}
+
+function addFoodRecord(input: NewFoodForm) {
+  foodRecords.value = [
+    {
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      mealType: input.mealType,
+      foodName: input.foodName.trim(),
+      portionLabel: input.portionLabel.trim() || "1 份",
+      calories: Math.round(normalizeNumber(input.calories)),
+      protein: Math.round(normalizeNumber(input.protein)),
+      carbs: Math.round(normalizeNumber(input.carbs)),
+      fat: Math.round(normalizeNumber(input.fat)),
+      fiber: Math.round(normalizeNumber(input.fiber)),
+      recordedAt: new Date().toISOString()
+    },
+    ...foodRecords.value
+  ];
+}
+
+function handleSubmit() {
+  formError.value = "";
+  const name = form.foodName.trim();
+  const values = [form.calories, form.protein, form.carbs, form.fat, form.fiber];
+
+  if (!name) {
+    formError.value = "请先填写食物名称。";
+    return;
+  }
+
+  if (values.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)) {
+    formError.value = "营养数值不能为负数，也不能为空。";
+    return;
+  }
+
+  addFoodRecord({
+    mealType: form.mealType,
+    foodName: name,
+    portionLabel: form.portionLabel.trim() || "1 份",
+    calories: Number(form.calories),
+    protein: Number(form.protein),
+    carbs: Number(form.carbs),
+    fat: Number(form.fat),
+    fiber: Number(form.fiber)
+  });
+  resetForm();
+  selectedMealFilter.value = "全部";
+  showToast("自定义饮食记录已保存");
+}
+
+function resetForm() {
+  form.mealType = "早餐";
+  form.foodName = "";
+  form.portionLabel = "1 份";
+  form.calories = 300;
+  form.protein = 20;
+  form.carbs = 35;
+  form.fat = 8;
+  form.fiber = 4;
+}
+
+function deleteRecord(id: number) {
+  foodRecords.value = foodRecords.value.filter((item) => item.id !== id);
+  showToast("饮食记录已删除，统计已同步更新");
+}
+
+function addWater(amount: number) {
+  waterIntake.value = Math.max(waterIntake.value + amount, 0);
+  showToast(`饮水 +${amount} ml`);
+}
+
+function resetWater() {
+  waterIntake.value = 0;
+  showToast("今日饮水量已重置");
+}
+
+function formatTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(value));
 }
 
-function resetForm() {
-  form.mealType = "加餐";
-  form.foodName = "";
-  form.portionLabel = "1 份";
-  form.calories = 180;
-  form.protein = 12;
-  form.carbs = 18;
-  form.fat = 6;
-  editingMealId.value = null;
-}
-
-function startEdit(meal: MealItem) {
-  editingMealId.value = meal.id;
-  form.mealType = meal.mealType;
-  form.foodName = meal.foodName;
-  form.portionLabel = meal.portionLabel;
-  form.calories = meal.calories;
-  form.protein = meal.protein;
-  form.carbs = meal.carbs;
-  form.fat = meal.fat;
-}
-
-function cancelEdit() {
-  resetForm();
-}
-
-async function applySummary(task: Promise<DietSummary>) {
-  saving.value = true;
-
-  try {
-    localSummary.value = await task;
-  } finally {
-    saving.value = false;
+function showToast(message: string) {
+  toast.value = message;
+  if (toastTimer) {
+    clearTimeout(toastTimer);
   }
+  toastTimer = setTimeout(() => {
+    toast.value = "";
+    lastAddedPlanId.value = "";
+  }, 1800);
 }
 
-async function handleQuickAdd(item: CreateDietEntryInput) {
-  await applySummary(addDietEntry(item));
-  activeMealType.value = "全部";
-}
-
-async function handleAddWater(amountMl: number) {
-  await applySummary(addWaterIntake({ amountMl }));
-}
-
-async function handleSubmit() {
-  if (!form.foodName.trim()) {
-    return;
+onUnmounted(() => {
+  if (toastTimer) {
+    clearTimeout(toastTimer);
   }
-
-  if (editingMealId.value !== null) {
-    await applySummary(
-      updateDietEntry({
-        id: editingMealId.value,
-        mealType: form.mealType,
-        foodName: form.foodName.trim(),
-        portionLabel: form.portionLabel.trim() || "1 份",
-        calories: form.calories,
-        protein: form.protein,
-        carbs: form.carbs,
-        fat: form.fat
-      } satisfies UpdateDietEntryInput)
-    );
-  } else {
-    await applySummary(
-      addDietEntry({
-        mealType: form.mealType,
-        foodName: form.foodName.trim(),
-        portionLabel: form.portionLabel.trim() || "1 份",
-        calories: form.calories,
-        protein: form.protein,
-        carbs: form.carbs,
-        fat: form.fat
-      })
-    );
-  }
-
-  resetForm();
-  activeMealType.value = "全部";
-}
-
-async function handleDelete(meal: MealItem) {
-  if (!window.confirm(`确定删除“${meal.foodName}”这条饮食记录吗？`)) {
-    return;
-  }
-
-  await applySummary(deleteDietEntry(meal.id));
-
-  if (editingMealId.value === meal.id) {
-    resetForm();
-  }
-}
+});
 </script>
 
 <template>
-  <section class="diet-board">
-    <article class="hero">
-      <div class="hero__main">
-        <p class="eyebrow">Fuel Dashboard</p>
-        <div class="hero__header">
-          <div>
-            <h3>{{ localSummary.dateLabel }}的饮食节奏</h3>
-            <p class="hero__copy">把热量、营养和饮水放在同一张面板里，记录之后会立刻回写数据库并刷新今天的汇总。</p>
-          </div>
-          <span class="hero__badge" :class="{ 'hero__badge--warning': localSummary.remainingCalories < 0 }">
-            {{ localSummary.remainingCalories >= 0 ? `剩余 ${localSummary.remainingCalories} kcal` : `超出 ${Math.abs(localSummary.remainingCalories)} kcal` }}
-          </span>
-        </div>
-
-        <div class="hero__grid">
-          <div class="hero-card">
-            <span>今日摄入</span>
-            <strong>{{ localSummary.todayCalories }} kcal</strong>
-            <div class="progress"><span class="progress__fill" :style="{ width: `${calorieProgress}%` }"></span></div>
-            <small>目标 {{ localSummary.calorieTarget }} kcal</small>
-          </div>
-
-          <div class="hero-card hero-card--water">
-            <span>饮水完成</span>
-            <strong>{{ localSummary.waterIntakeMl }} / {{ localSummary.waterTargetMl }} ml</strong>
-            <div class="progress"><span class="progress__fill progress__fill--water" :style="{ width: `${waterProgress}%` }"></span></div>
-            <div class="water-actions">
-              <button type="button" :disabled="saving" @click="handleAddWater(250)">+250 ml</button>
-              <button type="button" :disabled="saving" @click="handleAddWater(500)">+500 ml</button>
-            </div>
-          </div>
-        </div>
+  <section class="diet-page">
+    <article class="hero panel">
+      <div class="hero__content">
+        <p class="eyebrow">Daily Nutrition</p>
+        <h3>今日饮食规划与营养缺口分析</h3>
+        <p class="hero__copy">
+          以 1800 kcal 为默认目标，联动记录、饮水、推荐餐和营养建议，刷新后仍保留今日数据。
+        </p>
       </div>
 
-      <div class="hero__side">
-        <p class="eyebrow">Macro Balance</p>
-        <div class="macro-list">
-          <article v-for="macro in macros" :key="macro.label" class="macro-card" :data-tone="macro.tone">
-            <div class="macro-card__row">
-              <span>{{ macro.label }}</span>
-              <strong>{{ macro.value }} / {{ macro.target }} g</strong>
-            </div>
-            <div class="progress progress--thin">
-              <span class="progress__fill" :style="{ width: progressWidth(macro.value, macro.target) }"></span>
-            </div>
-          </article>
+      <div class="hero__summary">
+        <strong>{{ consumedNutrition.calories }} / {{ nutritionTarget.calories }} kcal</strong>
+        <span>当前热量完成度 {{ Math.round(safePercent(consumedNutrition.calories, nutritionTarget.calories)) }}%</span>
+        <div class="progress">
+          <span class="progress__fill" :style="{ width: progressWidth(consumedNutrition.calories, nutritionTarget.calories) }"></span>
         </div>
       </div>
     </article>
 
-    <section class="content-grid">
+    <section class="nutrition-grid">
+      <article v-for="card in nutritionCards" :key="card.key" class="metric-card" :data-tone="card.tone">
+        <div class="metric-card__top">
+          <span>{{ card.label }}</span>
+          <strong>{{ Math.round(card.value) }} {{ card.unit }}</strong>
+        </div>
+        <div class="progress progress--thin">
+          <span class="progress__fill" :style="{ width: progressWidth(card.value, card.target) }"></span>
+        </div>
+        <small>今日目标 {{ card.target }} {{ card.unit }}</small>
+      </article>
+    </section>
+
+    <section class="layout-grid">
       <article class="panel">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">Quick Add</p>
-            <h4>常用餐食快捷录入</h4>
+            <p class="eyebrow">Meal Plan</p>
+            <h4>每日饮食规划</h4>
           </div>
-          <span class="panel__hint">{{ saving ? "正在同步..." : "点击即可入库" }}</span>
+          <span class="panel__hint">点击后自动进入今日摄入记录</span>
         </div>
 
-        <div class="quick-grid">
-          <button
-            v-for="item in quickMeals"
-            :key="`${item.mealType}-${item.foodName}`"
-            class="quick-card"
-            type="button"
-            :disabled="saving"
-            @click="handleQuickAdd(item)"
-          >
-            <strong>{{ item.foodName }}</strong>
-            <span>{{ item.mealType }} · {{ item.portionLabel }}</span>
-            <small>{{ item.calories }} kcal · P{{ item.protein }} C{{ item.carbs }} F{{ item.fat }}</small>
-          </button>
+        <div class="plan-grid">
+          <article v-for="plan in defaultMealPlans" :key="plan.id" class="plan-card">
+            <div class="plan-card__head">
+              <span>{{ plan.mealType }}</span>
+              <strong>{{ plan.title }}</strong>
+            </div>
+            <p>{{ plan.portionLabel }}</p>
+            <div class="macro-line">
+              <span>{{ plan.calories }} kcal</span>
+              <span>P {{ plan.protein }}g</span>
+              <span>C {{ plan.carbs }}g</span>
+              <span>F {{ plan.fat }}g</span>
+              <span>纤维 {{ plan.fiber }}g</span>
+            </div>
+            <small>{{ plan.reason }}</small>
+            <button class="primary-button" type="button" @click="addPlanToRecords(plan)">
+              {{ lastAddedPlanId === plan.id ? "已加入" : "一键加入今日记录" }}
+            </button>
+          </article>
+        </div>
+      </article>
+
+      <aside class="panel panel--compact">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Water</p>
+            <h4>饮水打卡</h4>
+          </div>
+        </div>
+        <div class="water-card">
+          <strong>{{ waterIntake }} / {{ nutritionTarget.water }} ml</strong>
+          <div class="progress">
+            <span class="progress__fill progress__fill--water" :style="{ width: progressWidth(waterIntake, nutritionTarget.water) }"></span>
+          </div>
+          <div class="button-row">
+            <button type="button" @click="addWater(250)">+250 ml</button>
+            <button type="button" @click="addWater(500)">+500 ml</button>
+            <button type="button" class="ghost-button" @click="resetWater">重置</button>
+          </div>
+        </div>
+
+        <div class="meal-stats">
+          <article v-for="item in mealStats" :key="item.mealType">
+            <span>{{ item.mealType }}</span>
+            <strong>{{ item.calories }} kcal</strong>
+            <small>{{ item.count }} 条记录</small>
+          </article>
+        </div>
+      </aside>
+    </section>
+
+    <section class="layout-grid">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Nutrition Gap</p>
+            <h4>营养缺口与完成度</h4>
+          </div>
+        </div>
+
+        <div class="gap-list">
+          <article v-for="row in gapRows" :key="row.label" class="gap-row" :data-tone="row.tone">
+            <div class="gap-row__meta">
+              <strong>{{ row.label }}</strong>
+              <span>{{ row.status }}</span>
+            </div>
+            <div class="progress progress--thin">
+              <span class="progress__fill" :style="{ width: `${row.progress}%` }"></span>
+            </div>
+            <small>已摄入 {{ Math.round(row.value) }} / {{ row.target }} {{ row.unit }}</small>
+          </article>
+        </div>
+      </article>
+
+      <aside class="panel panel--tips">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Suggestions</p>
+            <h4>动态补充建议</h4>
+          </div>
+        </div>
+        <div class="tip-list">
+          <article v-for="tip in supplementTips" :key="tip.title" class="tip-card" :data-tone="tip.tone">
+            <strong>{{ tip.title }}</strong>
+            <p>{{ tip.detail }}</p>
+          </article>
+        </div>
+      </aside>
+    </section>
+
+    <section class="layout-grid">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Custom Entry</p>
+            <h4>添加自定义饮食记录</h4>
+          </div>
         </div>
 
         <form class="entry-form" @submit.prevent="handleSubmit">
-          <div class="entry-form__header">
-            <div>
-              <p class="eyebrow">Custom Entry</p>
-              <h4>{{ editingMealId !== null ? "编辑饮食记录" : "添加自定义记录" }}</h4>
-            </div>
-            <button v-if="editingMealId !== null" class="ghost-button" type="button" :disabled="saving" @click="cancelEdit">取消编辑</button>
-          </div>
-
-          <div class="entry-form__grid">
-            <label>
-              <span>餐次</span>
-              <select v-model="form.mealType">
-                <option>早餐</option>
-                <option>午餐</option>
-                <option>晚餐</option>
-                <option>加餐</option>
-              </select>
-            </label>
-
-            <label class="entry-form__wide">
-              <span>食物名称</span>
-              <input v-model="form.foodName" type="text" placeholder="例如：鸡蛋三明治" />
-            </label>
-
-            <label>
-              <span>份量</span>
-              <input v-model="form.portionLabel" type="text" placeholder="1 份" />
-            </label>
-
-            <label>
-              <span>热量</span>
-              <input v-model.number="form.calories" type="number" min="1" />
-            </label>
-
-            <label>
-              <span>蛋白质</span>
-              <input v-model.number="form.protein" type="number" min="0" />
-            </label>
-
-            <label>
-              <span>碳水</span>
-              <input v-model.number="form.carbs" type="number" min="0" />
-            </label>
-
-            <label>
-              <span>脂肪</span>
-              <input v-model.number="form.fat" type="number" min="0" />
-            </label>
-          </div>
-
-          <button class="submit-button" type="submit" :disabled="saving || !form.foodName.trim()">
-            {{ editingMealId !== null ? "保存修改" : "添加自定义记录" }}
-          </button>
+          <label>
+            <span>餐次</span>
+            <select v-model="form.mealType">
+              <option v-for="type in mealTypes" :key="type">{{ type }}</option>
+            </select>
+          </label>
+          <label class="entry-form__wide">
+            <span>食物名称</span>
+            <input v-model="form.foodName" type="text" placeholder="例如：番茄鸡蛋全麦三明治" />
+          </label>
+          <label>
+            <span>摄入量</span>
+            <input v-model="form.portionLabel" type="text" placeholder="1 份" />
+          </label>
+          <label>
+            <span>热量 kcal</span>
+            <input v-model.number="form.calories" type="number" min="0" />
+          </label>
+          <label>
+            <span>蛋白质 g</span>
+            <input v-model.number="form.protein" type="number" min="0" />
+          </label>
+          <label>
+            <span>碳水 g</span>
+            <input v-model.number="form.carbs" type="number" min="0" />
+          </label>
+          <label>
+            <span>脂肪 g</span>
+            <input v-model.number="form.fat" type="number" min="0" />
+          </label>
+          <label>
+            <span>膳食纤维 g</span>
+            <input v-model.number="form.fiber" type="number" min="0" />
+          </label>
+          <p v-if="formError" class="form-error">{{ formError }}</p>
+          <button class="primary-button" type="submit">保存饮食记录</button>
         </form>
       </article>
 
-      <article class="panel panel--insights">
+      <article class="panel">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">Signals</p>
-            <h4>今天的饮食提示</h4>
+            <p class="eyebrow">Meal Log</p>
+            <h4>今日已摄入内容</h4>
+          </div>
+          <div class="filters">
+            <button
+              v-for="type in mealFilters"
+              :key="type"
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--active': selectedMealFilter === type }"
+              @click="selectedMealFilter = type"
+            >
+              {{ type }}
+            </button>
           </div>
         </div>
 
-        <div class="insight-list">
-          <article v-for="item in localSummary.insights" :key="item.title" class="insight-card" :data-tone="item.tone">
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.detail }}</p>
-          </article>
-        </div>
-
-        <div class="group-list">
-          <article v-for="group in localSummary.mealGroups" :key="group.mealType" class="group-card">
-            <div>
-              <strong>{{ group.mealType }}</strong>
-              <small>{{ group.count }} 条记录</small>
-            </div>
-            <span>{{ group.calories }} kcal</span>
-          </article>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>餐次</th>
+                <th>食物</th>
+                <th>摄入量</th>
+                <th>热量</th>
+                <th>蛋白质</th>
+                <th>碳水</th>
+                <th>脂肪</th>
+                <th>纤维</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="record in filteredRecords" :key="record.id">
+                <td>{{ formatTime(record.recordedAt) }}</td>
+                <td>{{ record.mealType }}</td>
+                <td>{{ record.foodName }}</td>
+                <td>{{ record.portionLabel }}</td>
+                <td>{{ record.calories }} kcal</td>
+                <td>{{ record.protein }} g</td>
+                <td>{{ record.carbs }} g</td>
+                <td>{{ record.fat }} g</td>
+                <td>{{ record.fiber }} g</td>
+                <td>
+                  <button class="danger-button" type="button" @click="deleteRecord(record.id)">删除</button>
+                </td>
+              </tr>
+              <tr v-if="filteredRecords.length === 0">
+                <td colspan="10" class="empty-cell">当前筛选下暂无记录</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </article>
     </section>
 
-    <article class="panel panel--table">
-      <div class="panel__header">
-        <div>
-          <p class="eyebrow">Meal Log</p>
-          <h4>今日饮食记录表</h4>
-        </div>
-        <div class="filters">
-          <button
-            v-for="type in mealTypes"
-            :key="type"
-            type="button"
-            class="filter-chip"
-            :class="{ 'filter-chip--active': type === activeMealType }"
-            @click="activeMealType = type"
-          >
-            {{ type }}
-          </button>
-        </div>
-      </div>
-
-      <div class="table-shell">
-        <table>
-          <thead>
-            <tr>
-              <th>时间</th>
-              <th>餐次</th>
-              <th>食物</th>
-              <th>份量</th>
-              <th>热量</th>
-              <th>蛋白质</th>
-              <th>碳水</th>
-              <th>脂肪</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="meal in filteredMeals" :key="meal.id">
-              <td>{{ formatRecordedAt(meal.recordedAt) }}</td>
-              <td>{{ meal.mealType }}</td>
-              <td>{{ meal.foodName }}</td>
-              <td>{{ meal.portionLabel }}</td>
-              <td>{{ meal.calories }} kcal</td>
-              <td>{{ meal.protein }} g</td>
-              <td>{{ meal.carbs }} g</td>
-              <td>{{ meal.fat }} g</td>
-              <td>
-                <div class="row-actions">
-                  <button class="row-action" type="button" :disabled="saving" @click="startEdit(meal)">编辑</button>
-                  <button class="row-action row-action--danger" type="button" :disabled="saving" @click="handleDelete(meal)">删除</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </article>
+    <transition name="toast-fade">
+      <div v-if="toast" class="toast">{{ toast }}</div>
+    </transition>
   </section>
 </template>
 
 <style scoped>
-.diet-board {
+.diet-page {
   display: grid;
   gap: 18px;
   padding-right: 18px;
 }
 
-.hero,
-.panel {
-  padding: 24px;
-  border-radius: 28px;
+.panel,
+.metric-card {
   border: 1px solid rgba(57, 87, 63, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.94);
   box-shadow: 0 18px 44px rgba(31, 44, 36, 0.08);
+}
+
+.panel {
+  padding: 22px;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 18px;
-  background:
-    radial-gradient(circle at right top, rgba(123, 180, 214, 0.22), transparent 24%),
-    radial-gradient(circle at left top, rgba(255, 194, 116, 0.22), transparent 28%),
-    linear-gradient(135deg, rgba(255, 251, 244, 0.98), rgba(244, 249, 247, 0.96));
+  align-items: stretch;
+  background: linear-gradient(135deg, rgba(255, 251, 244, 0.98), rgba(241, 248, 244, 0.96));
 }
 
 .eyebrow {
   margin: 0 0 10px;
   font-size: 0.76rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--color-text-soft);
-}
-
-.hero__header,
-.hero__grid,
-.panel__header,
-.macro-card__row,
-.group-card,
-.entry-form__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.hero__header {
-  align-items: flex-start;
-}
-
-.hero__copy {
-  margin: 10px 0 0;
-  max-width: 720px;
-  line-height: 1.7;
   color: var(--color-text-soft);
 }
 
@@ -476,187 +845,245 @@ async function handleDelete(meal: MealItem) {
   font-size: 2rem;
 }
 
-.hero__badge {
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(72, 136, 92, 0.12);
-  color: #215635;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.hero__badge--warning {
-  background: rgba(202, 144, 51, 0.16);
-  color: #8a4f14;
-}
-
-.hero__grid {
-  margin-top: 22px;
-}
-
-.hero-card,
-.macro-card,
-.quick-card,
-.insight-card,
-.group-card {
-  border-radius: 22px;
-  border: 1px solid rgba(57, 87, 63, 0.1);
-}
-
-.hero-card {
-  flex: 1;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.58);
-}
-
-.hero-card span,
-.hero-card small,
+.hero__copy,
 .panel__hint,
-.quick-card span,
-.quick-card small,
-.insight-card p,
-.group-card small,
+.metric-card small,
+.plan-card p,
+.plan-card small,
+.gap-row small,
+.tip-card p,
+.meal-stats small,
 table thead th {
   color: var(--color-text-soft);
 }
 
-.hero-card strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 1.8rem;
+.hero__copy {
+  max-width: 720px;
+  margin: 12px 0 0;
+  line-height: 1.75;
+}
+
+.hero__summary {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.hero__summary strong {
   color: var(--color-text);
+  font-size: 1.55rem;
 }
 
-.water-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.water-actions button,
-.submit-button,
-.filter-chip,
-.ghost-button,
-.row-action {
-  border: 0;
-  cursor: pointer;
-}
-
-.water-actions button,
-.submit-button {
-  padding: 10px 14px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #2e596a, #4e8ea2);
-  color: #f7fbfc;
-  font-weight: 700;
-}
-
-.water-actions button:disabled,
-.submit-button:disabled,
-.quick-card:disabled,
-.ghost-button:disabled,
-.row-action:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.hero__side {
-  padding: 22px;
-  border-radius: 24px;
-  background: rgba(34, 58, 67, 0.94);
-  color: #f3f7f8;
-}
-
-.hero__side .eyebrow {
-  color: rgba(232, 241, 243, 0.7);
-}
-
-.macro-list,
-.insight-list,
-.group-list {
+.nutrition-grid {
   display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
 }
 
-.macro-card {
+.metric-card {
   padding: 16px;
-  background: rgba(255, 255, 255, 0.08);
 }
 
-.macro-card span {
-  color: rgba(232, 241, 243, 0.72);
-}
-
-.macro-card strong {
-  color: #fff9f1;
-}
-
-.content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) 380px;
-  gap: 18px;
-}
-
-.panel {
-  background: rgba(255, 252, 246, 0.92);
-}
-
-.panel--insights {
-  background:
-    radial-gradient(circle at top right, rgba(161, 206, 176, 0.18), transparent 24%),
-    rgba(255, 252, 246, 0.95);
-}
-
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.metric-card__top,
+.panel__header,
+.gap-row__meta {
+  display: flex;
+  justify-content: space-between;
   gap: 12px;
-  margin-bottom: 18px;
 }
 
-.quick-card {
-  padding: 18px;
-  text-align: left;
-  background: linear-gradient(180deg, rgba(244, 248, 241, 0.95), rgba(255, 252, 246, 0.92));
+.metric-card__top {
+  align-items: flex-start;
 }
 
-.quick-card strong,
-.insight-card strong,
-.group-card strong,
+.metric-card__top span,
+.gap-row__meta span {
+  color: var(--color-text-soft);
+}
+
+.metric-card strong,
+.gap-row strong,
+.tip-card strong,
+.plan-card strong,
+.meal-stats strong,
 table tbody td {
   color: var(--color-text);
 }
 
-.quick-card strong,
-.quick-card span,
-.quick-card small {
-  display: block;
+.metric-card[data-tone="positive"],
+.gap-row[data-tone="positive"],
+.tip-card[data-tone="positive"] {
+  border-color: rgba(67, 143, 82, 0.24);
+  background: rgba(239, 249, 239, 0.82);
 }
 
-.quick-card span,
-.quick-card small {
-  margin-top: 6px;
+.metric-card[data-tone="warning"],
+.gap-row[data-tone="warning"],
+.tip-card[data-tone="warning"] {
+  border-color: rgba(201, 148, 65, 0.28);
+  background: rgba(255, 246, 226, 0.86);
 }
 
-.entry-form {
-  padding: 20px;
-  border-radius: 24px;
-  background: rgba(241, 245, 239, 0.86);
-}
-
-.entry-form__header {
-  align-items: center;
-  margin-bottom: 14px;
-}
-
-.entry-form__grid {
+.layout-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.2fr) minmax(340px, 0.8fr);
+  gap: 18px;
+}
+
+.panel__header {
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.entry-form__wide {
-  grid-column: span 2;
+.plan-card,
+.water-card,
+.gap-row,
+.tip-card,
+.meal-stats article {
+  border: 1px solid rgba(57, 87, 63, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.plan-card {
+  padding: 18px;
+}
+
+.plan-card__head {
+  display: grid;
+  gap: 6px;
+}
+
+.plan-card__head span {
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(57, 87, 63, 0.08);
+  color: #315040;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.macro-line,
+.button-row,
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.macro-line {
+  margin: 12px 0;
+}
+
+.macro-line span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(49, 79, 63, 0.08);
+  color: #365745;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.primary-button,
+.danger-button,
+.ghost-button,
+.button-row button,
+.filter-chip {
+  border: 0;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary-button {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #314f3f, #668f73);
+  color: #f7fbf8;
+}
+
+.button-row button,
+.ghost-button,
+.filter-chip {
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(57, 87, 63, 0.08);
+  color: #335140;
+}
+
+.button-row button:not(.ghost-button) {
+  background: rgba(62, 127, 154, 0.14);
+  color: #2e596a;
+}
+
+.danger-button {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(185, 77, 77, 0.12);
+  color: #8a3c3c;
+}
+
+.filter-chip--active {
+  background: linear-gradient(135deg, #305742, #4e7d64);
+  color: #f7fbf8;
+}
+
+.water-card {
+  padding: 18px;
+}
+
+.water-card strong {
+  color: var(--color-text);
+  font-size: 1.35rem;
+}
+
+.meal-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.meal-stats article {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+}
+
+.meal-stats span {
+  color: var(--color-text-soft);
+}
+
+.gap-list,
+.tip-list {
+  display: grid;
+  gap: 12px;
+}
+
+.gap-row,
+.tip-card {
+  padding: 16px;
+}
+
+.tip-card p {
+  margin: 8px 0 0;
+  line-height: 1.65;
+}
+
+.entry-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .entry-form label {
@@ -664,87 +1091,35 @@ table tbody td {
   gap: 8px;
 }
 
+.entry-form__wide {
+  grid-column: span 2;
+}
+
 .entry-form label span {
-  font-size: 0.86rem;
   color: var(--color-text-soft);
+  font-size: 0.86rem;
 }
 
 .entry-form input,
 .entry-form select {
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 14px;
+  box-sizing: border-box;
+  padding: 12px 13px;
   border: 1px solid rgba(57, 87, 63, 0.14);
-  background: rgba(255, 255, 255, 0.82);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
   color: var(--color-text);
 }
 
-.submit-button {
-  margin-top: 16px;
+.entry-form .primary-button,
+.form-error {
+  grid-column: 1 / -1;
 }
 
-.ghost-button {
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: rgba(57, 87, 63, 0.08);
-  color: #335140;
+.form-error {
+  margin: 0;
+  color: #8a3c3c;
   font-weight: 700;
-}
-
-.insight-card {
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.58);
-}
-
-.insight-card[data-tone="positive"] {
-  border-color: rgba(69, 144, 92, 0.26);
-}
-
-.insight-card[data-tone="warning"] {
-  border-color: rgba(201, 148, 65, 0.28);
-}
-
-.insight-card p {
-  margin: 8px 0 0;
-  line-height: 1.6;
-}
-
-.group-list {
-  margin-top: 16px;
-}
-
-.group-card {
-  padding: 16px 18px;
-  align-items: center;
-  background: rgba(243, 246, 241, 0.86);
-}
-
-.group-card span {
-  font-weight: 800;
-  color: #355540;
-}
-
-.panel--table {
-  overflow: hidden;
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.filter-chip {
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(57, 87, 63, 0.08);
-  color: #335140;
-  font-weight: 700;
-}
-
-.filter-chip--active {
-  background: linear-gradient(135deg, #305742, #4e7d64);
-  color: #f7fbf8;
 }
 
 .table-shell {
@@ -758,36 +1133,24 @@ table {
 
 table th,
 table td {
-  padding: 13px 10px;
-  text-align: left;
+  padding: 12px 10px;
   border-bottom: 1px solid rgba(57, 87, 63, 0.1);
+  text-align: left;
   vertical-align: top;
+  white-space: nowrap;
 }
 
-.row-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.row-action {
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(57, 87, 63, 0.08);
-  color: #335140;
-  font-weight: 700;
-}
-
-.row-action--danger {
-  background: rgba(185, 77, 77, 0.12);
-  color: #8a3c3c;
+.empty-cell {
+  text-align: center;
+  color: var(--color-text-soft);
 }
 
 .progress {
   height: 10px;
-  margin-top: 12px;
-  border-radius: 999px;
-  background: rgba(57, 87, 63, 0.08);
+  margin-top: 10px;
   overflow: hidden;
+  border-radius: 999px;
+  background: rgba(57, 87, 63, 0.1);
 }
 
 .progress--thin {
@@ -798,42 +1161,61 @@ table td {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #3b5f45, #71a96f, #f2c56f);
+  background: linear-gradient(90deg, #31513e, #78aa70, #f0c46e);
 }
 
 .progress__fill--water {
   background: linear-gradient(90deg, #2d6070, #5cb9d5);
 }
 
+.toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 1200;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #335f42;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 16px 30px rgba(24, 33, 27, 0.18);
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: all 0.25s ease;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
 @media (max-width: 1280px) {
   .hero,
-  .content-grid {
+  .layout-grid,
+  .nutrition-grid {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 920px) {
-  .hero__header,
-  .hero__grid,
+@media (max-width: 860px) {
   .panel__header,
-  .macro-card__row,
-  .group-card,
-  .entry-form__header {
+  .metric-card__top,
+  .gap-row__meta {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .quick-grid,
-  .entry-form__grid {
+  .plan-grid,
+  .meal-stats,
+  .entry-form {
     grid-template-columns: 1fr;
   }
 
   .entry-form__wide {
     grid-column: span 1;
-  }
-
-  .row-actions {
-    flex-direction: column;
   }
 }
 </style>

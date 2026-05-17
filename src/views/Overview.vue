@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { addWaterIntake } from "../services/backend/diet";
 import type { OverviewSummary, Tone } from "../services/types";
 
@@ -416,12 +416,6 @@ function showToast(message: string, tone: "success" | "info" = "success") {
   }, 1600);
 }
 
-onUnmounted(() => {
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-  }
-});
-
 function toNumber(text: string) {
   const cleaned = text.replace(/,/g, "");
   const num = Number(cleaned);
@@ -518,6 +512,27 @@ function handleUpdateProgressClick(card: KanbanCard) {
   }
   handleInteraction(card.action || "update_progress");
 }
+
+const todoEmpty = computed(() => todoCards.value.length === 0);
+const doingEmpty = computed(() => doingCards.value.length === 0);
+const doneEmpty = computed(() => doneCards.value.length === 0);
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape" && showSleepModal.value) {
+    showSleepModal.value = false;
+  }
+}
+
+onMounted(() => {
+  document.addEventListener("keydown", handleKeydown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", handleKeydown);
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+  }
+});
 </script>
 
 <template>
@@ -627,36 +642,39 @@ function handleUpdateProgressClick(card: KanbanCard) {
         </div>
 
         <div class="plan-list kanban-list">
-          <div
-            v-for="item in todoCards"
-            :key="item.uid"
-            class="plan-card kanban-card"
-            :class="{
-              'kanban-card--drag-target': dragOverCardUid === item.uid,
-              'kanban-card--drag-target-before': dragOverCardUid === item.uid && dragOverPlacement === 'before',
-              'kanban-card--drag-target-after': dragOverCardUid === item.uid && dragOverPlacement === 'after'
-            }"
-            draggable="true"
-            @dragstart="onCardDragStart('todo', item.uid)"
-            @dragover.prevent.stop="onCardDragOver('todo', item.uid, $event)"
-            @drop.prevent.stop="dropToCard('todo', item.uid)"
-            @dragend="onCardDragEnd"
-          >
-            <div class="plan-card__top">
-              <span class="tag tag--period">{{ item.period }}</span>
-              <label class="tag tag--type">{{ item.tag }}</label>
-            </div>
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.detail }}</p>
-            <button
-              class="kanban-action-btn"
-              :class="{ 'kanban-action-btn--completed': item.action === 'completed' }"
-              :disabled="item.action === 'completed'"
-              @click="finishTodoQuick(item.uid)"
+          <div v-if="todoEmpty" class="kanban-empty">暂无待办任务，今天节奏不错 ☀️</div>
+          <TransitionGroup name="kanban-card-move" tag="div" class="kanban-list-inner">
+            <div
+              v-for="item in todoCards"
+              :key="item.uid"
+              class="plan-card kanban-card"
+              :class="{
+                'kanban-card--drag-target': dragOverCardUid === item.uid,
+                'kanban-card--drag-target-before': dragOverCardUid === item.uid && dragOverPlacement === 'before',
+                'kanban-card--drag-target-after': dragOverCardUid === item.uid && dragOverPlacement === 'after'
+              }"
+              draggable="true"
+              @dragstart="onCardDragStart('todo', item.uid)"
+              @dragover.prevent.stop="onCardDragOver('todo', item.uid, $event)"
+              @drop.prevent.stop="dropToCard('todo', item.uid)"
+              @dragend="onCardDragEnd"
             >
-              {{ item.action === 'completed' ? '已达标' : '标记完成' }}
-            </button>
-          </div>
+              <div class="plan-card__top">
+                <span class="tag tag--period">{{ item.period }}</span>
+                <label class="tag tag--type">{{ item.tag }}</label>
+              </div>
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.detail }}</p>
+              <button
+                class="kanban-action-btn"
+                :class="{ 'kanban-action-btn--completed': item.action === 'completed' }"
+                :disabled="item.action === 'completed'"
+                @click="finishTodoQuick(item.uid)"
+              >
+                {{ item.action === 'completed' ? '已达标' : '标记完成' }}
+              </button>
+            </div>
+          </TransitionGroup>
         </div>
       </article>
 
@@ -674,27 +692,30 @@ function handleUpdateProgressClick(card: KanbanCard) {
         </div>
 
         <div class="today-list kanban-list">
-          <div
-            v-for="item in doingCards"
-            :key="item.uid"
-            class="today-card kanban-card"
-            :data-tone="item.tone"
-            :class="{
-              'kanban-card--drag-target': dragOverCardUid === item.uid,
-              'kanban-card--drag-target-before': dragOverCardUid === item.uid && dragOverPlacement === 'before',
-              'kanban-card--drag-target-after': dragOverCardUid === item.uid && dragOverPlacement === 'after'
-            }"
-            draggable="true"
-            @dragstart="onCardDragStart('doing', item.uid)"
-            @dragover.prevent.stop="onCardDragOver('doing', item.uid, $event)"
-            @drop.prevent.stop="dropToCard('doing', item.uid)"
-            @dragend="onCardDragEnd"
-          >
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.detail }}</p>
-            <small>{{ item.meta }}</small>
-            <button class="kanban-action-btn kanban-action-btn--update" @click="handleUpdateProgressClick(item)">✎ 更新进度</button>
-          </div>
+          <div v-if="doingEmpty" class="kanban-empty">所有任务皆已排程，暂无进行中的事项</div>
+          <TransitionGroup name="kanban-card-move" tag="div" class="kanban-list-inner">
+            <div
+              v-for="item in doingCards"
+              :key="item.uid"
+              class="today-card kanban-card"
+              :data-tone="item.tone"
+              :class="{
+                'kanban-card--drag-target': dragOverCardUid === item.uid,
+                'kanban-card--drag-target-before': dragOverCardUid === item.uid && dragOverPlacement === 'before',
+                'kanban-card--drag-target-after': dragOverCardUid === item.uid && dragOverPlacement === 'after'
+              }"
+              draggable="true"
+              @dragstart="onCardDragStart('doing', item.uid)"
+              @dragover.prevent.stop="onCardDragOver('doing', item.uid, $event)"
+              @drop.prevent.stop="dropToCard('doing', item.uid)"
+              @dragend="onCardDragEnd"
+            >
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.detail }}</p>
+              <small>{{ item.meta }}</small>
+              <button class="kanban-action-btn kanban-action-btn--update" @click="handleUpdateProgressClick(item)">✎ 更新进度</button>
+            </div>
+          </TransitionGroup>
         </div>
       </article>
 
@@ -712,27 +733,30 @@ function handleUpdateProgressClick(card: KanbanCard) {
         </div>
 
         <div class="today-list kanban-list">
-          <div
-            v-for="item in doneCards"
-            :key="item.uid"
-            class="today-card kanban-card kanban-card--finished"
-            :data-tone="item.tone"
-            :class="{
-              'kanban-card--drag-target': dragOverCardUid === item.uid,
-              'kanban-card--drag-target-before': dragOverCardUid === item.uid && dragOverPlacement === 'before',
-              'kanban-card--drag-target-after': dragOverCardUid === item.uid && dragOverPlacement === 'after'
-            }"
-            draggable="true"
-            @dragstart="onCardDragStart('done', item.uid)"
-            @dragover.prevent.stop="onCardDragOver('done', item.uid, $event)"
-            @drop.prevent.stop="dropToCard('done', item.uid)"
-            @dragend="onCardDragEnd"
-          >
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.detail }}</p>
-            <small>{{ item.meta }}</small>
-            <span class="kanban-card__stamp">完成</span>
-          </div>
+          <div v-if="doneEmpty" class="kanban-empty">今天还没有完成的任务，开始推进第一张卡片吧</div>
+          <TransitionGroup name="kanban-card-move" tag="div" class="kanban-list-inner">
+            <div
+              v-for="item in doneCards"
+              :key="item.uid"
+              class="today-card kanban-card kanban-card--finished"
+              :data-tone="item.tone"
+              :class="{
+                'kanban-card--drag-target': dragOverCardUid === item.uid,
+                'kanban-card--drag-target-before': dragOverCardUid === item.uid && dragOverPlacement === 'before',
+                'kanban-card--drag-target-after': dragOverCardUid === item.uid && dragOverPlacement === 'after'
+              }"
+              draggable="true"
+              @dragstart="onCardDragStart('done', item.uid)"
+              @dragover.prevent.stop="onCardDragOver('done', item.uid, $event)"
+              @drop.prevent.stop="dropToCard('done', item.uid)"
+              @dragend="onCardDragEnd"
+            >
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.detail }}</p>
+              <small>{{ item.meta }}</small>
+              <span class="kanban-card__stamp">完成</span>
+            </div>
+          </TransitionGroup>
         </div>
       </article>
     </section>
@@ -1344,6 +1368,14 @@ function handleUpdateProgressClick(card: KanbanCard) {
   .today-grid {
     grid-template-columns: 1fr;
   }
+
+  .kanban-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kanban--done {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 1240px) {
@@ -1354,8 +1386,38 @@ function handleUpdateProgressClick(card: KanbanCard) {
     grid-template-columns: 1fr;
   }
 
+  .kanban-board {
+    grid-template-columns: 1fr;
+  }
+
+  .kanban--done {
+    grid-column: auto;
+  }
+
   .load-chart {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero__action {
+    order: -1;
+  }
+
+  .hero h3 {
+    font-size: 1.55rem;
+  }
+
+  .hero__score strong {
+    font-size: 2rem;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 /* 交互按钮样式 */
@@ -1387,6 +1449,36 @@ function handleUpdateProgressClick(card: KanbanCard) {
   background: rgba(46, 204, 113, 0.25);
 }
 
+.kanban-card-move-enter-active,
+.kanban-card-move-leave-active {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.kanban-card-move-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.96);
+}
+
+.kanban-card-move-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+}
+
+.kanban-card-move-leave-active {
+  position: absolute;
+}
+
+.kanban-empty {
+  padding: 28px 18px;
+  border-radius: 14px;
+  background: rgba(240, 245, 239, 0.65);
+  border: 1px dashed rgba(100, 125, 105, 0.18);
+  color: #7d9485;
+  font-size: 0.9rem;
+  text-align: center;
+  line-height: 1.6;
+}
+
 /* Kanban 看板列及其互动样式 */
 .kanban-board {
   display: grid;
@@ -1400,6 +1492,11 @@ function handleUpdateProgressClick(card: KanbanCard) {
   margin-top: 12px;
 }
 
+.kanban-list-inner {
+  display: grid;
+  gap: 12px;
+}
+
 .kanban-card {
   padding: 16px;
   border-radius: 14px;
@@ -1407,6 +1504,13 @@ function handleUpdateProgressClick(card: KanbanCard) {
   border: 1px solid rgba(80, 100, 85, 0.08);
   box-shadow: 0 4px 12px rgba(80, 100, 85, 0.03);
   position: relative;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(50, 75, 60, 0.08);
+  border-color: rgba(80, 100, 85, 0.14);
 }
 
 .kanban-card[draggable="true"] {
@@ -1530,6 +1634,61 @@ function handleUpdateProgressClick(card: KanbanCard) {
   .hero__quick-actions {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .water-ring {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .action-toast {
+    right: 12px;
+    bottom: 12px;
+    max-width: calc(100vw - 24px);
+  }
+}
+
+@media (max-width: 600px) {
+  .hero h3 {
+    font-size: 1.35rem;
+  }
+
+  .hero__score strong {
+    font-size: 1.7rem;
+  }
+
+  .hero__goal strong,
+  .hero__completion strong {
+    font-size: 1.3rem;
+  }
+
+  .metrics,
+  .load-chart {
+    grid-template-columns: 1fr;
+  }
+
+  .load-chart {
+    gap: 8px;
+    min-height: 180px;
+  }
+
+  .load-chart__bars {
+    height: 90px;
+  }
+
+  .load-chart__bar {
+    width: 28px;
+  }
+
+  .hero,
+  .panel,
+  .metric-card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .kanban-card {
+    padding: 12px;
   }
 }
 

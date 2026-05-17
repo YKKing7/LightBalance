@@ -59,6 +59,8 @@ const form = reactive({
 });
 
 const saveNotice = ref<{ tone: "warning" | "success"; message: string } | null>(null);
+const isDirty = ref(false);
+const showUnsavedDialog = ref(false);
 
 function toFiniteNumber(value: unknown) {
   if (typeof value === "number") {
@@ -168,6 +170,99 @@ const validationIssues = computed(() => {
 });
 
 const canSubmit = computed(() => validationIssues.value.length === 0);
+
+const fieldErrors = computed(() => {
+  const errors: Record<string, string | null> = {};
+
+  if (!form.nickname.trim()) {
+    errors.nickname = "昵称不能为空";
+  }
+
+  const age = toFiniteNumber(form.age);
+  if (!Number.isFinite(age) || age < 10 || age > 100) {
+    errors.age = "年龄需在 10-100 之间";
+  }
+
+  const heightCm = toFiniteNumber(form.heightCm);
+  if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) {
+    errors.heightCm = "身高需在 120-230 cm 之间";
+  }
+
+  const weightKg = toFiniteNumber(form.currentWeightKg);
+  if (!Number.isFinite(weightKg) || weightKg < 25 || weightKg > 300) {
+    errors.currentWeightKg = "当前体重需在 25-300 kg 之间";
+  }
+
+  const targetWeightKg = toFiniteNumber(form.targetWeightKg);
+  if (!Number.isFinite(targetWeightKg) || targetWeightKg < 25 || targetWeightKg > 250) {
+    errors.targetWeightKg = "目标体重需在 25-250 kg 之间";
+  }
+
+  const bodyFatRate = form.bodyFatRate === "" ? null : toFiniteNumber(form.bodyFatRate);
+  if (bodyFatRate !== null && (!Number.isFinite(bodyFatRate) || bodyFatRate < 3 || bodyFatRate > 70)) {
+    errors.bodyFatRate = "体脂率建议填写在 3%-70% 区间";
+  }
+
+  const targetBodyFatRate = form.targetBodyFatRate === "" ? null : toFiniteNumber(form.targetBodyFatRate);
+  if (targetBodyFatRate !== null && (!Number.isFinite(targetBodyFatRate) || targetBodyFatRate < 3 || targetBodyFatRate > 65)) {
+    errors.targetBodyFatRate = "目标体脂建议填写在 3%-65% 区间";
+  }
+
+  const weeklyWorkoutTarget = toFiniteNumber(form.weeklyWorkoutTarget);
+  if (!Number.isFinite(weeklyWorkoutTarget) || weeklyWorkoutTarget < 0 || weeklyWorkoutTarget > 14) {
+    errors.weeklyWorkoutTarget = "每周训练目标需在 0-14 次之间";
+  }
+
+  const dailyCalorieTarget = toFiniteNumber(form.dailyCalorieTarget);
+  if (!Number.isFinite(dailyCalorieTarget) || dailyCalorieTarget < 1000 || dailyCalorieTarget > 5000) {
+    errors.dailyCalorieTarget = "每日热量目标需在 1000-5000 kcal 之间";
+  }
+
+  const sleepTargetHours = toFiniteNumber(form.sleepTargetHours);
+  if (!Number.isFinite(sleepTargetHours) || sleepTargetHours < 4 || sleepTargetHours > 12) {
+    errors.sleepTargetHours = "睡眠目标建议填写在 4-12 小时";
+  }
+
+  return errors;
+});
+
+const hasFieldErrors = computed(() => Object.values(fieldErrors.value).some((v) => v !== null && v !== undefined));
+
+watch(
+  () => ({ ...form }),
+  (current, previous) => {
+    if (!props.record) {
+      isDirty.value = false;
+      return;
+    }
+
+    if (previous && JSON.stringify(current) === JSON.stringify(previous)) {
+      return;
+    }
+
+    const record = props.record;
+    isDirty.value =
+      form.nickname !== record.nickname ||
+      form.age !== record.age ||
+      form.gender !== record.gender ||
+      form.heightCm !== record.heightCm ||
+      form.currentWeightKg !== record.currentWeightKg ||
+      (form.bodyFatRate === "" ? null : Number(form.bodyFatRate)) !== (record.bodyFatRate ?? null) ||
+      form.targetWeightKg !== record.targetWeightKg ||
+      (form.targetBodyFatRate === "" ? null : Number(form.targetBodyFatRate)) !== (record.targetBodyFatRate ?? null) ||
+      form.weeklyWorkoutTarget !== record.weeklyWorkoutTarget ||
+      form.dailyCalorieTarget !== record.dailyCalorieTarget ||
+      form.sleepTargetHours !== record.sleepTargetHours ||
+      form.workStyle !== record.workStyle ||
+      form.stressLevel !== record.stressLevel ||
+      form.smokingStatus !== record.smokingStatus ||
+      form.drinkingFrequency !== record.drinkingFrequency ||
+      form.habitSleep !== record.habitSleep ||
+      form.habitDiet !== record.habitDiet ||
+      form.habitExercise !== record.habitExercise;
+  },
+  { deep: false }
+);
 
 const bodyTrendSeries = computed(() => {
   const series = props.trendSummary?.series ?? [];
@@ -377,6 +472,7 @@ function handleSave() {
   }
 
   isEditing.value = false;
+  isDirty.value = false;
   saveNotice.value = { tone: "success", message: "档案已提交，正在同步到数据库..." };
   emit("save", {
     nickname: form.nickname.trim(),
@@ -400,6 +496,15 @@ function handleSave() {
     habitDiet: form.habitDiet.trim(),
     habitExercise: form.habitExercise.trim()
   });
+}
+
+function confirmDiscard() {
+  showUnsavedDialog.value = false;
+  isDirty.value = false;
+}
+
+function fieldErrorFor(key: string) {
+  return fieldErrors.value[key] ?? null;
 }
 </script>
 
@@ -626,14 +731,16 @@ function handleSave() {
             </div>
 
             <div class="fields fields--four">
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('nickname') }">
                 <span>昵称</span>
                 <input v-model.trim="form.nickname" type="text" placeholder="例如：小林" />
+                <p v-if="fieldErrorFor('nickname')" class="field-error">{{ fieldErrorFor('nickname') }}</p>
               </label>
 
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('age') }">
                 <span>年龄</span>
                 <input v-model="form.age" type="number" min="0" placeholder="18" />
+                <p v-if="fieldErrorFor('age')" class="field-error">{{ fieldErrorFor('age') }}</p>
               </label>
 
               <label class="field">
@@ -665,19 +772,22 @@ function handleSave() {
             </div>
 
             <div class="fields fields--four">
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('heightCm') }">
                 <span>身高(cm)</span>
                 <input v-model="form.heightCm" type="number" min="0" step="0.1" placeholder="170" />
+                <p v-if="fieldErrorFor('heightCm')" class="field-error">{{ fieldErrorFor('heightCm') }}</p>
               </label>
 
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('currentWeightKg') }">
                 <span>当前体重(kg)</span>
                 <input v-model="form.currentWeightKg" type="number" min="0" step="0.1" placeholder="60" />
+                <p v-if="fieldErrorFor('currentWeightKg')" class="field-error">{{ fieldErrorFor('currentWeightKg') }}</p>
               </label>
 
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('bodyFatRate') }">
                 <span>体脂率(%)</span>
                 <input v-model="form.bodyFatRate" type="number" min="0" max="100" step="0.1" placeholder="可选" />
+                <p v-if="fieldErrorFor('bodyFatRate')" class="field-error">{{ fieldErrorFor('bodyFatRate') }}</p>
               </label>
 
               <label class="field field--readonly">
@@ -697,31 +807,36 @@ function handleSave() {
             </div>
 
             <div class="fields fields--four">
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('targetWeightKg') }">
                 <span>目标体重(kg)</span>
                 <input v-model="form.targetWeightKg" type="number" min="0" step="0.1" />
+                <p v-if="fieldErrorFor('targetWeightKg')" class="field-error">{{ fieldErrorFor('targetWeightKg') }}</p>
               </label>
 
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('targetBodyFatRate') }">
                 <span>目标体脂(%)</span>
                 <input v-model="form.targetBodyFatRate" type="number" min="0" max="100" step="0.1" placeholder="可选" />
+                <p v-if="fieldErrorFor('targetBodyFatRate')" class="field-error">{{ fieldErrorFor('targetBodyFatRate') }}</p>
               </label>
 
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('weeklyWorkoutTarget') }">
                 <span>每周训练目标</span>
                 <input v-model="form.weeklyWorkoutTarget" type="number" min="0" max="14" />
+                <p v-if="fieldErrorFor('weeklyWorkoutTarget')" class="field-error">{{ fieldErrorFor('weeklyWorkoutTarget') }}</p>
               </label>
 
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('dailyCalorieTarget') }">
                 <span>每日热量目标</span>
                 <input v-model="form.dailyCalorieTarget" type="number" min="1000" step="10" />
+                <p v-if="fieldErrorFor('dailyCalorieTarget')" class="field-error">{{ fieldErrorFor('dailyCalorieTarget') }}</p>
               </label>
             </div>
 
             <div class="fields fields--three">
-              <label class="field">
+              <label class="field" :class="{ 'field--error': fieldErrorFor('sleepTargetHours') }">
                 <span>睡眠目标(小时)</span>
                 <input v-model="form.sleepTargetHours" type="number" min="0" max="24" step="0.5" />
+                <p v-if="fieldErrorFor('sleepTargetHours')" class="field-error">{{ fieldErrorFor('sleepTargetHours') }}</p>
               </label>
 
               <label class="field">
@@ -823,6 +938,19 @@ function handleSave() {
       </div>
       <p class="copy">{{ profile.goalSummary }}</p>
     </article>
+
+    <div v-if="showUnsavedDialog" class="unsaved-dialog-overlay" @click.self="showUnsavedDialog = false">
+      <div class="unsaved-dialog">
+        <div class="unsaved-dialog__icon">⚠</div>
+        <h4>有未保存的修改</h4>
+        <p>当前表单中存在尚未保存的身体档案变动信息。切换页面后这些修改将会丢失。</p>
+        <div class="unsaved-dialog__actions">
+          <button class="btn btn--primary" @click="handleSave(); showUnsavedDialog = false">保存并离开</button>
+          <button class="btn btn--secondary" @click="confirmDiscard">放弃修改</button>
+          <button class="btn btn--ghost" @click="showUnsavedDialog = false">继续编辑</button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -1311,6 +1439,15 @@ function handleSave() {
   background: rgba(210, 225, 214, 0.9);
 }
 
+.btn--ghost {
+  background: transparent;
+  color: #6b786f;
+  box-shadow: none;
+}
+.btn--ghost:hover {
+  background: rgba(210, 225, 214, 0.4);
+}
+
 .table-shell {
   overflow: hidden;
   border-radius: 22px;
@@ -1421,6 +1558,21 @@ function handleSave() {
   border-color: rgba(68, 108, 78, 0.55);
   box-shadow: 0 0 0 4px rgba(129, 168, 136, 0.14);
   transform: translateY(-1px);
+}
+
+.field--error input,
+.field--error select,
+.field--error textarea {
+  border-color: rgba(220, 80, 60, 0.45);
+  box-shadow: 0 0 0 3px rgba(220, 80, 60, 0.08);
+}
+
+.field-error {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #c0392b;
+  line-height: 1.4;
 }
 
 .field-card {
@@ -1588,6 +1740,10 @@ function handleSave() {
   .fields--three {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .goal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 920px) {
@@ -1626,5 +1782,141 @@ function handleSave() {
   .table-shell {
     overflow-x: auto;
   }
+
+  .hero h3 {
+    font-size: 1.55rem;
+  }
+
+  .hero-stat strong {
+    font-size: 1.15rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero__content {
+    gap: 16px;
+  }
+
+  .hero__identity {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .hero,
+  .panel,
+  .goal-card {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .goal-card strong {
+    font-size: 1.4rem;
+  }
+
+  .hero h3 {
+    font-size: 1.35rem;
+  }
+
+  .mini-trend-card__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .hero-stat {
+    padding: 14px;
+  }
+
+  .form-section {
+    padding: 14px;
+  }
+
+  .field input,
+  .field select,
+  .field textarea {
+    padding: 12px 14px;
+  }
+
+  .panel__actions {
+    flex-direction: column;
+  }
+
+  .panel__actions button {
+    width: 100%;
+  }
+}
+
+.unsaved-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  animation: unsaved-fade-in 0.2s ease;
+}
+
+.unsaved-dialog {
+  background: rgba(255, 252, 248, 0.98);
+  padding: 28px 24px;
+  border-radius: 22px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 24px 54px rgba(24, 33, 27, 0.18);
+  border: 1px solid rgba(78, 101, 84, 0.1);
+  text-align: center;
+  animation: unsaved-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.unsaved-dialog__icon {
+  font-size: 2.4rem;
+  margin-bottom: 10px;
+}
+
+.unsaved-dialog h4 {
+  margin: 0 0 10px;
+  color: #2c3e2e;
+  font-size: 1.2rem;
+}
+
+.unsaved-dialog p {
+  color: #66756d;
+  line-height: 1.7;
+  margin: 0 0 20px;
+}
+
+.unsaved-dialog__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+@keyframes unsaved-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes unsaved-scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.form-section {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-section:focus-within {
+  border-color: rgba(78, 105, 84, 0.18);
+  box-shadow: 0 2px 12px rgba(78, 105, 84, 0.06);
 }
 </style>

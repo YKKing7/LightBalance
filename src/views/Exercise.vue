@@ -1,152 +1,525 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
-import { addExerciseEntry, deleteExerciseEntry, updateExerciseEntry } from "../services/backend/exercise";
-import type { ExerciseEntryInput, ExerciseSummary, UpdateExerciseEntryInput, WorkoutItem } from "../services/types";
+import { computed, onUnmounted, reactive, ref, watch } from "vue";
+import type { ExerciseSummary } from "../services/types";
+
+type Intensity = "低强度" | "中等" | "中高强度" | "高强度";
+type WorkoutType = "有氧" | "力量" | "瑜伽" | "HIIT" | "骑行" | "综合";
+type TipTone = "positive" | "neutral" | "warning";
+
+interface WeeklyGoal {
+  targetSessions: number;
+  targetMinutes: number;
+  targetCalories: number;
+}
+
+interface Workout {
+  id: number;
+  title: string;
+  type: WorkoutType;
+  intensity: Intensity;
+  plannedMinutes: number;
+  calories: number;
+  completed: boolean;
+  actualSeconds: number;
+  date: string;
+  notes: string;
+  suggestedTime: string;
+  completedAt: string | null;
+}
+
+interface WorkoutForm {
+  title: string;
+  type: WorkoutType;
+  intensity: Intensity;
+  plannedMinutes: number;
+  calories: number;
+  notes: string;
+  suggestedTime: string;
+}
 
 const props = defineProps<{
   summary: ExerciseSummary;
 }>();
 
 const emit = defineEmits<{
-  (e: "change"): void;
+  (event: "change"): void;
 }>();
 
-const localSummary = ref<ExerciseSummary>(props.summary);
-const saving = ref(false);
-const activeCategory = ref<"全部" | string>("全部");
-const editingWorkoutId = ref<number | null>(null);
+const STORAGE_KEYS = {
+  workouts: "lightbalance:exercise:workouts",
+  timer: "lightbalance:exercise:timer",
+  goal: "lightbalance:exercise:goal"
+} as const;
 
-function toLocalDateKey(value: Date | string) {
-  const date = typeof value === "string" ? new Date(value) : value;
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+const defaultWeeklyGoal: WeeklyGoal = {
+  targetSessions: 5,
+  targetMinutes: 180,
+  targetCalories: 1200
+};
 
-const quickPlans: ExerciseEntryInput[] = [
+const defaultWorkouts: Workout[] = [
   {
-    name: "上肢力量循环",
-    category: "力量",
-    durationMinutes: 40,
-    caloriesBurned: 280,
+    id: 101,
+    title: "快走燃脂",
+    type: "有氧",
+    intensity: "中等",
+    plannedMinutes: 35,
+    calories: 220,
+    completed: true,
+    actualSeconds: 31 * 60,
+    date: getTodayDateString(),
+    notes: "控制心率，保持可持续节奏。",
+    suggestedTime: "晚饭后 1 小时",
+    completedAt: new Date().toISOString()
+  },
+  {
+    id: 102,
+    title: "核心力量",
+    type: "力量",
     intensity: "中高强度",
-    notes: "适合下班后快速完成的推拉循环。"
+    plannedMinutes: 30,
+    calories: 180,
+    completed: false,
+    actualSeconds: 0,
+    date: getTodayDateString(),
+    notes: "平板支撑、死虫、臀桥组合。",
+    suggestedTime: "下午或傍晚",
+    completedAt: null
   },
   {
-    name: "晚间快走恢复",
-    category: "有氧",
-    durationMinutes: 30,
-    caloriesBurned: 180,
-    intensity: "中等",
-    notes: "通勤后补足活动量，提升恢复感。"
-  },
-  {
-    name: "核心稳定组合",
-    category: "功能",
-    durationMinutes: 25,
-    caloriesBurned: 150,
-    intensity: "中等",
-    notes: "适合久坐后激活核心和臀部。"
-  },
-  {
-    name: "拉伸舒展",
-    category: "恢复",
-    durationMinutes: 18,
-    caloriesBurned: 70,
+    id: 103,
+    title: "瑜伽拉伸",
+    type: "瑜伽",
     intensity: "低强度",
-    notes: "睡前放松肩颈和下背。"
+    plannedMinutes: 25,
+    calories: 90,
+    completed: false,
+    actualSeconds: 0,
+    date: getTodayDateString(),
+    notes: "肩颈、髋部和下背放松。",
+    suggestedTime: "睡前 40 分钟",
+    completedAt: null
+  },
+  {
+    id: 104,
+    title: "HIIT 间歇",
+    type: "HIIT",
+    intensity: "高强度",
+    plannedMinutes: 18,
+    calories: 210,
+    completed: false,
+    actualSeconds: 0,
+    date: getTodayDateString(),
+    notes: "20 秒动作 + 40 秒恢复，按状态减少组数。",
+    suggestedTime: "精力较好时",
+    completedAt: null
+  },
+  {
+    id: 105,
+    title: "骑行有氧",
+    type: "骑行",
+    intensity: "中等",
+    plannedMinutes: 40,
+    calories: 260,
+    completed: false,
+    actualSeconds: 0,
+    date: getTodayDateString(),
+    notes: "保持稳定踏频，避免一开始冲太快。",
+    suggestedTime: "周末上午",
+    completedAt: null
   }
 ];
 
-const form = reactive<ExerciseEntryInput>({
-  name: "",
-  category: "力量",
-  durationMinutes: 35,
-  caloriesBurned: 220,
+const fallbackWorkouts = computed<Workout[]>(() =>
+  props.summary.workouts.map((item) => ({
+    id: item.id,
+    title: item.name,
+    type: normalizeWorkoutType(item.category),
+    intensity: normalizeIntensity(item.intensity),
+    plannedMinutes: normalizeNumber(item.durationMinutes, 20),
+    calories: normalizeNumber(item.caloriesBurned, 100),
+    completed: item.status.includes("完成"),
+    actualSeconds: normalizeNumber(item.durationMinutes, 0) * 60,
+    date: item.performedAt.slice(0, 10),
+    notes: item.notes,
+    suggestedTime: "根据个人日程安排",
+    completedAt: item.status.includes("完成") ? item.performedAt : null
+  }))
+);
+
+const workouts = ref<Workout[]>([]);
+const weeklyGoal = reactive<WeeklyGoal>({ ...defaultWeeklyGoal });
+const currentWorkoutId = ref<number | null>(null);
+const timerSeconds = ref(0);
+const timerRunning = ref(false);
+const formError = ref("");
+const toast = ref("");
+let timerId: ReturnType<typeof setInterval> | null = null;
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+const form = reactive<WorkoutForm>({
+  title: "",
+  type: "综合",
   intensity: "中等",
-  status: "已完成",
-  notes: ""
+  plannedMinutes: 30,
+  calories: 180,
+  notes: "",
+  suggestedTime: "今天傍晚"
+});
+
+loadExerciseState();
+
+const completedWorkouts = computed(() => workouts.value.filter((item) => item.completed));
+const incompleteWorkouts = computed(() => workouts.value.filter((item) => !item.completed));
+const currentWorkout = computed(() => workouts.value.find((item) => item.id === currentWorkoutId.value) ?? null);
+
+const weeklySummary = computed(() => {
+  const completed = completedWorkouts.value;
+  const totalMinutes = completed.reduce((sum, item) => sum + actualMinutes(item), 0);
+  const totalCalories = completed.reduce((sum, item) => sum + item.calories, 0);
+  const highIntensityCount = completed.filter((item) => item.intensity === "高强度" || item.intensity === "中高强度").length;
+
+  return {
+    completedSessions: completed.length,
+    totalMinutes,
+    totalCalories,
+    remainingSessions: Math.max(weeklyGoal.targetSessions - completed.length, 0),
+    sessionRate: safePercent(completed.length, weeklyGoal.targetSessions),
+    minuteRate: safePercent(totalMinutes, weeklyGoal.targetMinutes),
+    calorieRate: safePercent(totalCalories, weeklyGoal.targetCalories),
+    highIntensityCount
+  };
+});
+
+const summaryCards = computed(() => [
+  {
+    label: "本周目标",
+    value: `${weeklyGoal.targetSessions} 次`,
+    note: `${weeklyGoal.targetMinutes} 分钟 / ${weeklyGoal.targetCalories} kcal`
+  },
+  {
+    label: "已完成次数",
+    value: `${weeklySummary.value.completedSessions} 次`,
+    note: `还需 ${weeklySummary.value.remainingSessions} 次`
+  },
+  {
+    label: "累计分钟数",
+    value: `${weeklySummary.value.totalMinutes} 分钟`,
+    note: `完成率 ${Math.round(weeklySummary.value.minuteRate)}%`
+  },
+  {
+    label: "累计消耗",
+    value: `${weeklySummary.value.totalCalories} kcal`,
+    note: `目标完成 ${Math.round(weeklySummary.value.calorieRate)}%`
+  }
+]);
+
+const trainingTips = computed(() => {
+  const tips: { title: string; detail: string; tone: TipTone }[] = [];
+  const summary = weeklySummary.value;
+
+  if (summary.remainingSessions > 0) {
+    tips.push({
+      title: "训练次数还需推进",
+      detail: `本周还需要完成 ${summary.remainingSessions} 次训练，可优先选择 20 到 35 分钟的低门槛计划。`,
+      tone: summary.remainingSessions >= 3 ? "warning" : "neutral"
+    });
+  }
+
+  if (summary.totalMinutes < weeklyGoal.targetMinutes) {
+    tips.push({
+      title: "累计时长仍有缺口",
+      detail: `距离周目标还差 ${weeklyGoal.targetMinutes - summary.totalMinutes} 分钟，可安排快走、骑行或瑜伽拉伸补足。`,
+      tone: "neutral"
+    });
+  }
+
+  if (summary.completedSessions >= weeklyGoal.targetSessions && summary.totalMinutes >= weeklyGoal.targetMinutes) {
+    tips.push({
+      title: "本周训练目标已达成",
+      detail: "后续重点可以放在恢复、睡眠和轻量活动，保持节奏比额外加量更重要。",
+      tone: "positive"
+    });
+  }
+
+  if (summary.highIntensityCount >= 3) {
+    tips.push({
+      title: "高强度训练偏多",
+      detail: "连续高强度训练容易影响恢复，建议穿插低强度有氧或拉伸，给肌肉和关节留出恢复时间。",
+      tone: "warning"
+    });
+  }
+
+  if (tips.length === 0) {
+    tips.push({
+      title: "训练节奏稳定",
+      detail: "当前计划有完成也有待执行任务，适合继续按计划推进，不需要突然增加训练量。",
+      tone: "positive"
+    });
+  }
+
+  return tips;
+});
+
+const timerProgress = computed(() => {
+  if (!currentWorkout.value) return 0;
+  return safePercent(timerSeconds.value, currentWorkout.value.plannedMinutes * 60);
 });
 
 watch(
-  () => props.summary,
-  (value) => {
-    localSummary.value = value;
-  }
+  [workouts, currentWorkoutId, timerSeconds, weeklyGoal],
+  () => {
+    saveExerciseState();
+  },
+  { deep: true }
 );
 
-const completionWidth = computed(() => `${Math.max(8, localSummary.value.completionRate)}%`);
-const categories = computed(() => ["全部", ...new Set(localSummary.value.workouts.map((item) => item.category))]);
-const filteredWorkouts = computed(() => {
-  if (activeCategory.value === "全部") {
-    return localSummary.value.workouts;
-  }
+function loadExerciseState() {
+  const storedGoal = readJson<Partial<WeeklyGoal>>(STORAGE_KEYS.goal, {});
+  Object.assign(weeklyGoal, sanitizeWeeklyGoal({ ...defaultWeeklyGoal, ...storedGoal }));
 
-  return localSummary.value.workouts.filter((item) => item.category === activeCategory.value);
-});
+  const storedWorkouts = readJson<Workout[] | null>(STORAGE_KEYS.workouts, null);
+  const initialWorkouts = Array.isArray(storedWorkouts) ? storedWorkouts : fallbackWorkouts.value.length > 0 ? fallbackWorkouts.value : defaultWorkouts;
+  workouts.value = initialWorkouts.map(sanitizeWorkout).filter((item): item is Workout => item !== null);
 
-const weeklyCards = computed(() => [
-  { label: "本周目标", value: `${localSummary.value.weeklyGoalDays} 天`, note: "训练目标频次来自身体档案中的每周设置。" },
-  { label: "已完成天数", value: `${localSummary.value.completedDays} 天`, note: "按本周存在训练记录的日期自动统计。" },
-  { label: "总训练时长", value: `${localSummary.value.totalMinutes} 分钟`, note: `单次平均 ${localSummary.value.averageMinutes} 分钟` },
-  { label: "累计消耗", value: `${localSummary.value.totalCaloriesBurned} kcal`, note: `当前连续训练 ${localSummary.value.streakDays} 天` }
-]);
-
-const focusSignal = computed(() => {
-  if (localSummary.value.todayMinutes >= 30) {
-    return "今天已经完成有效训练，后续更适合恢复和拉伸。";
-  }
-
-  if (localSummary.value.completedDays >= localSummary.value.weeklyGoalDays) {
-    return "本周目标已达成，建议把重点切换到恢复和保持。";
-  }
-
-  return `距离本周目标还差 ${Math.max(localSummary.value.weeklyGoalDays - localSummary.value.completedDays, 0)} 天，今天适合补一段短训练。`;
-});
-
-const calendarDays = computed(() => {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() + mondayOffset);
-
-  const workoutsByDate = localSummary.value.workouts.reduce(
-    (map, item) => {
-      const key = toLocalDateKey(item.performedAt);
-      const bucket = map.get(key) ?? { totalMinutes: 0, count: 0, calories: 0 };
-      bucket.totalMinutes += item.durationMinutes;
-      bucket.count += 1;
-      bucket.calories += item.caloriesBurned;
-      map.set(key, bucket);
-      return map;
-    },
-    new Map<string, { totalMinutes: number; count: number; calories: number }>()
-  );
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    const isoDate = toLocalDateKey(date);
-    const bucket = workoutsByDate.get(isoDate);
-    const intensityLevel = !bucket ? 0 : bucket.totalMinutes >= 50 ? 4 : bucket.totalMinutes >= 35 ? 3 : bucket.totalMinutes >= 20 ? 2 : 1;
-
-    return {
-      key: isoDate,
-      label: new Intl.DateTimeFormat("zh-CN", { weekday: "short" }).format(date),
-      dateLabel: new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(date),
-      totalMinutes: bucket?.totalMinutes ?? 0,
-      count: bucket?.count ?? 0,
-      calories: bucket?.calories ?? 0,
-      intensityLevel,
-      isToday: isoDate === toLocalDateKey(now)
-    };
+  const timerState = readJson<{ currentWorkoutId: number | null; timerSeconds: number }>(STORAGE_KEYS.timer, {
+    currentWorkoutId: null,
+    timerSeconds: 0
   });
-});
+  currentWorkoutId.value = workouts.value.some((item) => item.id === timerState.currentWorkoutId) ? timerState.currentWorkoutId : null;
+  timerSeconds.value = Math.round(normalizeNumber(timerState.timerSeconds));
+  timerRunning.value = false;
+}
 
-function formatPerformedAt(value: string) {
+function saveExerciseState() {
+  localStorage.setItem(STORAGE_KEYS.workouts, JSON.stringify(workouts.value));
+  localStorage.setItem(
+    STORAGE_KEYS.timer,
+    JSON.stringify({
+      currentWorkoutId: currentWorkoutId.value,
+      timerSeconds: timerSeconds.value
+    })
+  );
+  localStorage.setItem(STORAGE_KEYS.goal, JSON.stringify({ ...weeklyGoal }));
+}
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch (err) {
+    console.warn(`Failed to parse ${key}`, err);
+    return fallback;
+  }
+}
+
+function sanitizeWeeklyGoal(goal: WeeklyGoal): WeeklyGoal {
+  return {
+    targetSessions: Math.max(Math.round(normalizeNumber(goal.targetSessions, defaultWeeklyGoal.targetSessions)), 1),
+    targetMinutes: Math.max(Math.round(normalizeNumber(goal.targetMinutes, defaultWeeklyGoal.targetMinutes)), 1),
+    targetCalories: Math.max(Math.round(normalizeNumber(goal.targetCalories, defaultWeeklyGoal.targetCalories)), 1)
+  };
+}
+
+function sanitizeWorkout(item: Partial<Workout>): Workout | null {
+  const title = String(item.title ?? "").trim();
+  if (!title) return null;
+
+  return {
+    id: Number.isFinite(Number(item.id)) ? Number(item.id) : Date.now(),
+    title,
+    type: normalizeWorkoutType(String(item.type ?? "")),
+    intensity: normalizeIntensity(String(item.intensity ?? "")),
+    plannedMinutes: Math.max(Math.round(normalizeNumber(item.plannedMinutes, 20)), 1),
+    calories: Math.max(Math.round(normalizeNumber(item.calories, 100)), 0),
+    completed: Boolean(item.completed),
+    actualSeconds: Math.round(normalizeNumber(item.actualSeconds)),
+    date: String(item.date ?? getTodayDateString()),
+    notes: String(item.notes ?? ""),
+    suggestedTime: String(item.suggestedTime ?? "根据个人日程安排"),
+    completedAt: item.completedAt ? String(item.completedAt) : null
+  };
+}
+
+function normalizeWorkoutType(value: string): WorkoutType {
+  const types: WorkoutType[] = ["有氧", "力量", "瑜伽", "HIIT", "骑行", "综合"];
+  return types.includes(value as WorkoutType) ? (value as WorkoutType) : "综合";
+}
+
+function normalizeIntensity(value: string): Intensity {
+  const intensities: Intensity[] = ["低强度", "中等", "中高强度", "高强度"];
+  return intensities.includes(value as Intensity) ? (value as Intensity) : "中等";
+}
+
+function normalizeNumber(value: unknown, fallback = 0) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? Math.max(numberValue, 0) : fallback;
+}
+
+function safePercent(value: number, target: number) {
+  if (!Number.isFinite(value) || !Number.isFinite(target) || target <= 0) {
+    return 0;
+  }
+
+  return Math.min(Math.max((Math.max(value, 0) / target) * 100, 0), 100);
+}
+
+function getTodayDateString() {
+  const now = new Date();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function actualMinutes(workout: Workout) {
+  const seconds = workout.actualSeconds > 0 ? workout.actualSeconds : workout.plannedMinutes * 60;
+  return Math.round(seconds / 60);
+}
+
+function startWorkout(workout: Workout) {
+  if (timerRunning.value && currentWorkoutId.value !== workout.id) {
+    showToast("当前训练仍在计时，请先暂停或完成后再开始新的任务");
+    return;
+  }
+
+  currentWorkoutId.value = workout.id;
+  timerSeconds.value = workout.actualSeconds || 0;
+  startTimer();
+  showToast(`${workout.title} 已开始`);
+}
+
+function startTimer() {
+  if (!currentWorkout.value || timerId) {
+    return;
+  }
+
+  timerRunning.value = true;
+  timerId = setInterval(() => {
+    timerSeconds.value += 1;
+  }, 1000);
+}
+
+function pauseTimer() {
+  if (timerId) {
+    clearInterval(timerId);
+    timerId = null;
+  }
+  timerRunning.value = false;
+}
+
+function resumeTimer() {
+  if (!currentWorkout.value) {
+    showToast("请先从未完成任务中选择训练");
+    return;
+  }
+  startTimer();
+}
+
+function resetTimer() {
+  pauseTimer();
+  timerSeconds.value = 0;
+  showToast("计时器已重置");
+}
+
+function completeCurrentWorkout() {
+  const workout = currentWorkout.value;
+  if (!workout) {
+    showToast("请先选择当前训练任务");
+    return;
+  }
+
+  pauseTimer();
+  const actualSeconds = Math.max(timerSeconds.value, 0);
+  workouts.value = workouts.value.map((item) =>
+    item.id === workout.id
+      ? {
+          ...item,
+          completed: true,
+          actualSeconds,
+          date: getTodayDateString(),
+          completedAt: new Date().toISOString()
+        }
+      : item
+  );
+  currentWorkoutId.value = null;
+  timerSeconds.value = 0;
+  emit("change");
+  showToast(`${workout.title} 已完成并写入训练日志`);
+}
+
+function undoComplete(workout: Workout) {
+  workouts.value = workouts.value.map((item) =>
+    item.id === workout.id
+      ? {
+          ...item,
+          completed: false,
+          actualSeconds: 0,
+          completedAt: null
+        }
+      : item
+  );
+  emit("change");
+  showToast("已恢复为未完成任务");
+}
+
+function handleSubmit() {
+  formError.value = "";
+  const title = form.title.trim();
+  const numbers = [form.plannedMinutes, form.calories];
+
+  if (!title) {
+    formError.value = "请填写训练名称。";
+    return;
+  }
+
+  if (numbers.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)) {
+    formError.value = "训练时长和预计热量不能为负数。";
+    return;
+  }
+
+  workouts.value = [
+    {
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      title,
+      type: form.type,
+      intensity: form.intensity,
+      plannedMinutes: Math.round(Number(form.plannedMinutes)),
+      calories: Math.round(Number(form.calories)),
+      completed: false,
+      actualSeconds: 0,
+      date: getTodayDateString(),
+      notes: form.notes.trim(),
+      suggestedTime: form.suggestedTime.trim() || "根据个人日程安排",
+      completedAt: null
+    },
+    ...workouts.value
+  ];
+  resetForm();
+  showToast("自定义训练已加入未完成计划");
+}
+
+function resetForm() {
+  form.title = "";
+  form.type = "综合";
+  form.intensity = "中等";
+  form.plannedMinutes = 30;
+  form.calories = 180;
+  form.notes = "";
+  form.suggestedTime = "今天傍晚";
+}
+
+function formatDuration(seconds: number) {
+  const safeSeconds = Math.max(Math.round(seconds), 0);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const secs = safeSeconds % 60;
+  const minuteLabel = `${minutes}`.padStart(2, "0");
+  const secondLabel = `${secs}`.padStart(2, "0");
+  return hours > 0 ? `${hours}:${minuteLabel}:${secondLabel}` : `${minuteLabel}:${secondLabel}`;
+}
+
+function formatCompletedAt(value: string | null) {
+  if (!value) return "未记录";
   return new Intl.DateTimeFormat("zh-CN", {
     month: "2-digit",
     day: "2-digit",
@@ -155,437 +528,283 @@ function formatPerformedAt(value: string) {
   }).format(new Date(value));
 }
 
-function resetForm() {
-  form.name = "";
-  form.category = "力量";
-  form.durationMinutes = 35;
-  form.caloriesBurned = 220;
-  form.intensity = "中等";
-  form.status = "已完成";
-  form.notes = "";
-  editingWorkoutId.value = null;
-}
-
-function startEdit(item: WorkoutItem) {
-  editingWorkoutId.value = item.id;
-  form.name = item.name;
-  form.category = item.category;
-  form.durationMinutes = item.durationMinutes;
-  form.caloriesBurned = item.caloriesBurned;
-  form.intensity = item.intensity;
-  form.status = item.status;
-  form.notes = item.notes;
-}
-
-function cancelEdit() {
-  resetForm();
-}
-
-async function applySummary(task: Promise<ExerciseSummary>) {
-  saving.value = true;
-
-  try {
-    localSummary.value = await task;
-    emit("change");
-  } finally {
-    saving.value = false;
+function showToast(message: string) {
+  toast.value = message;
+  if (toastTimer) {
+    clearTimeout(toastTimer);
   }
+  toastTimer = setTimeout(() => {
+    toast.value = "";
+  }, 1800);
 }
 
-async function handleQuickAdd(item: ExerciseEntryInput) {
-  await applySummary(addExerciseEntry(item));
-  activeCategory.value = "全部";
-}
-
-async function handleSubmit() {
-  if (!form.name.trim()) {
-    return;
+onUnmounted(() => {
+  pauseTimer();
+  if (toastTimer) {
+    clearTimeout(toastTimer);
   }
-
-  const notes = form.notes?.trim() ?? "";
-
-  if (editingWorkoutId.value !== null) {
-    await applySummary(
-      updateExerciseEntry({
-        id: editingWorkoutId.value,
-        name: form.name.trim(),
-        category: form.category,
-        durationMinutes: form.durationMinutes,
-        caloriesBurned: form.caloriesBurned,
-        intensity: form.intensity,
-        status: form.status,
-        notes
-      } satisfies UpdateExerciseEntryInput)
-    );
-  } else {
-    await applySummary(
-      addExerciseEntry({
-        name: form.name.trim(),
-        category: form.category,
-        durationMinutes: form.durationMinutes,
-        caloriesBurned: form.caloriesBurned,
-        intensity: form.intensity,
-        status: form.status,
-        notes
-      })
-    );
-  }
-
-  resetForm();
-  activeCategory.value = "全部";
-}
-
-async function handleDelete(item: WorkoutItem) {
-  if (!window.confirm(`确定删除“${item.name}”这条训练记录吗？`)) {
-    return;
-  }
-
-  await applySummary(deleteExerciseEntry(item.id));
-
-  if (editingWorkoutId.value === item.id) {
-    resetForm();
-  }
-}
+});
 </script>
 
 <template>
-  <section class="exercise-board">
-    <article class="hero">
-      <div class="hero__layer"></div>
-      <div class="hero__main">
-        <p class="eyebrow">Movement Studio</p>
-        <div class="hero__header">
-          <div>
-            <h3>训练节奏、任务录入和本周反馈放在同一张指挥台里</h3>
-            <p class="hero__copy">
-              新增、编辑或删除训练后会即时写入数据库，并同步刷新进度、热力图、分类统计和日志表，让这块页面既能看趋势，也能直接执行。
-            </p>
-          </div>
-          <div class="hero__completion">
-            <span>周目标完成度</span>
-            <strong>{{ localSummary.completionRate }}%</strong>
-            <small>{{ localSummary.completedDays }} / {{ localSummary.weeklyGoalDays }} 天</small>
-          </div>
-        </div>
-
-        <div class="hero__track">
-          <div class="hero__track-meta">
-            <span>本周训练进度</span>
-            <strong>{{ focusSignal }}</strong>
-          </div>
-          <div class="hero__track-bar">
-            <span class="hero__track-fill" :style="{ width: completionWidth }"></span>
-          </div>
-        </div>
-
-        <div class="metric-grid">
-          <article v-for="card in weeklyCards" :key="card.label" class="metric-card">
-            <span>{{ card.label }}</span>
-            <strong>{{ card.value }}</strong>
-            <small>{{ card.note }}</small>
-          </article>
-        </div>
+  <section class="exercise-page">
+    <article class="hero panel">
+      <div class="hero__content">
+        <p class="eyebrow">Weekly Training</p>
+        <h3>训练计划执行与本周完成反馈</h3>
+        <p class="hero__copy">
+          将训练目标、当前任务、计时器、未完成计划和训练日志放在同一页面，形成计划、执行、反馈闭环。
+        </p>
       </div>
 
-      <aside class="hero__aside">
-        <div class="today-card">
-          <p class="eyebrow">Today Pulse</p>
-          <strong>{{ localSummary.todayMinutes }} 分钟</strong>
-          <span>今天已记录训练时长</span>
+      <div class="hero__progress">
+        <strong>{{ Math.round(weeklySummary.sessionRate) }}%</strong>
+        <span>本周次数完成率</span>
+        <div class="progress">
+          <span class="progress__fill" :style="{ width: `${weeklySummary.sessionRate}%` }"></span>
         </div>
-
-        <div class="aside-grid">
-          <article class="mini-card">
-            <span>平均单次训练</span>
-            <strong>{{ localSummary.averageMinutes }} 分钟</strong>
-          </article>
-          <article class="mini-card">
-            <span>连续训练</span>
-            <strong>{{ localSummary.streakDays }} 天</strong>
-          </article>
-        </div>
-
-        <div class="insight-list">
-          <article v-for="item in localSummary.insights" :key="item.title" class="insight-card" :data-tone="item.tone">
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.detail }}</p>
-          </article>
-        </div>
-      </aside>
+      </div>
     </article>
 
-    <section class="board-grid">
-      <article class="panel panel--calendar">
+    <section class="summary-grid">
+      <article v-for="card in summaryCards" :key="card.label" class="metric-card">
+        <span>{{ card.label }}</span>
+        <strong>{{ card.value }}</strong>
+        <small>{{ card.note }}</small>
+      </article>
+    </section>
+
+    <section class="layout-grid">
+      <article class="panel timer-panel">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">Weekly Heatmap</p>
-            <h4>周训练日历</h4>
+            <p class="eyebrow">Current Session</p>
+            <h4>当前训练任务</h4>
           </div>
-          <span class="panel__hint">颜色越深代表当天训练负荷越高</span>
+          <span class="status-pill" :data-active="timerRunning">{{ timerRunning ? "计时中" : "待执行" }}</span>
         </div>
 
-        <div class="calendar-grid">
-          <article
-            v-for="day in calendarDays"
-            :key="day.key"
-            class="calendar-card"
-            :class="[`calendar-card--level-${day.intensityLevel}`, { 'calendar-card--today': day.isToday }]"
-          >
-            <div class="calendar-card__top">
-              <span>{{ day.label }}</span>
-              <strong>{{ day.dateLabel }}</strong>
-            </div>
-            <div class="calendar-card__body">
-              <em>{{ day.totalMinutes }} 分钟</em>
-              <small>{{ day.count > 0 ? `${day.count} 条记录 · ${day.calories} kcal` : "当天暂无训练" }}</small>
-            </div>
-          </article>
+        <div v-if="currentWorkout" class="current-card">
+          <div>
+            <strong>{{ currentWorkout.title }}</strong>
+            <p>{{ currentWorkout.type }} / {{ currentWorkout.intensity }} / 计划 {{ currentWorkout.plannedMinutes }} 分钟</p>
+            <small>预计消耗 {{ currentWorkout.calories }} kcal，建议 {{ currentWorkout.suggestedTime }}</small>
+          </div>
+          <div class="timer-display">{{ formatDuration(timerSeconds) }}</div>
+          <div class="progress">
+            <span class="progress__fill" :style="{ width: `${timerProgress}%` }"></span>
+          </div>
+          <div class="button-row">
+            <button type="button" :disabled="timerRunning" @click="resumeTimer">开始/继续</button>
+            <button type="button" :disabled="!timerRunning" @click="pauseTimer">暂停</button>
+            <button type="button" @click="resetTimer">重置</button>
+            <button type="button" class="primary-button" @click="completeCurrentWorkout">完成训练</button>
+          </div>
+        </div>
+
+        <div v-else class="empty-state">
+          <strong>尚未选择训练</strong>
+          <p>从未完成训练计划中点击“开始训练”，这里会显示任务信息和计时器。</p>
         </div>
       </article>
 
-      <aside class="panel panel--breakdown">
+      <aside class="panel panel--tips">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">Structure</p>
-            <h4>训练结构分布</h4>
+            <p class="eyebrow">Feedback</p>
+            <h4>周统计与训练建议</h4>
           </div>
         </div>
 
-        <div class="breakdown-list">
-          <article v-for="item in localSummary.categoryBreakdown" :key="item.category" class="breakdown-card">
-            <div class="breakdown-card__head">
-              <strong>{{ item.category }}</strong>
-              <span>{{ item.sessions }} 次</span>
+        <div class="target-bars">
+          <article>
+            <span>次数目标</span>
+            <strong>{{ weeklySummary.completedSessions }} / {{ weeklyGoal.targetSessions }}</strong>
+            <div class="progress progress--thin">
+              <span class="progress__fill" :style="{ width: `${weeklySummary.sessionRate}%` }"></span>
             </div>
-            <div class="breakdown-card__bar">
-              <span
-                class="breakdown-card__fill"
-                :style="{ width: `${Math.max(18, (item.totalMinutes / Math.max(localSummary.totalMinutes, 1)) * 100)}%` }"
-              ></span>
+          </article>
+          <article>
+            <span>分钟目标</span>
+            <strong>{{ weeklySummary.totalMinutes }} / {{ weeklyGoal.targetMinutes }}</strong>
+            <div class="progress progress--thin">
+              <span class="progress__fill" :style="{ width: `${weeklySummary.minuteRate}%` }"></span>
             </div>
-            <p>{{ item.totalMinutes }} 分钟 · {{ item.totalCaloriesBurned }} kcal</p>
+          </article>
+          <article>
+            <span>热量目标</span>
+            <strong>{{ weeklySummary.totalCalories }} / {{ weeklyGoal.targetCalories }}</strong>
+            <div class="progress progress--thin">
+              <span class="progress__fill" :style="{ width: `${weeklySummary.calorieRate}%` }"></span>
+            </div>
+          </article>
+        </div>
+
+        <div class="tip-list">
+          <article v-for="tip in trainingTips" :key="tip.title" class="tip-card" :data-tone="tip.tone">
+            <strong>{{ tip.title }}</strong>
+            <p>{{ tip.detail }}</p>
           </article>
         </div>
       </aside>
     </section>
 
-    <section class="studio-grid">
-      <article class="panel panel--planner">
+    <section class="layout-grid">
+      <article class="panel">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">Quick Start</p>
-            <h4>快速开始一段训练</h4>
+            <p class="eyebrow">Todo</p>
+            <h4>未完成训练计划</h4>
           </div>
-          <span class="panel__hint">{{ saving ? "训练数据同步中..." : "点击模板可直接写入记录" }}</span>
+          <span class="panel__hint">{{ incompleteWorkouts.length }} 项待完成</span>
         </div>
 
-        <div class="quick-grid">
-          <button
-            v-for="item in quickPlans"
-            :key="`${item.category}-${item.name}`"
-            class="quick-card"
-            type="button"
-            :disabled="saving"
-            @click="handleQuickAdd(item)"
-          >
-            <span class="quick-card__tag">{{ item.category }}</span>
-            <strong>{{ item.name }}</strong>
-            <p>{{ item.notes }}</p>
-            <small>{{ item.durationMinutes }} 分钟 · {{ item.caloriesBurned }} kcal · {{ item.intensity }}</small>
-          </button>
-        </div>
-
-        <form class="entry-form" @submit.prevent="handleSubmit">
-          <div class="entry-form__header">
-            <div>
-              <p class="eyebrow">Custom Entry</p>
-              <h4>{{ editingWorkoutId !== null ? "编辑训练记录" : "自定义录入训练" }}</h4>
+        <div class="workout-list">
+          <article v-for="workout in incompleteWorkouts" :key="workout.id" class="workout-card">
+            <div class="workout-card__main">
+              <span>{{ workout.type }} / {{ workout.intensity }}</span>
+              <strong>{{ workout.title }}</strong>
+              <p>{{ workout.notes || "暂无备注" }}</p>
             </div>
-            <button v-if="editingWorkoutId !== null" class="ghost-button" type="button" :disabled="saving" @click="cancelEdit">
-              取消编辑
+            <div class="workout-card__meta">
+              <span>{{ workout.plannedMinutes }} 分钟</span>
+              <span>{{ workout.calories }} kcal</span>
+              <span>{{ workout.suggestedTime }}</span>
+            </div>
+            <button class="primary-button" type="button" :disabled="timerRunning && currentWorkoutId !== workout.id" @click="startWorkout(workout)">
+              {{ currentWorkoutId === workout.id ? "继续当前训练" : "开始训练" }}
             </button>
+          </article>
+          <div v-if="incompleteWorkouts.length === 0" class="empty-state">
+            <strong>未完成任务已清空</strong>
+            <p>可以添加自定义训练，或在已完成日志中撤销某条记录用于演示。</p>
           </div>
+        </div>
+      </article>
 
-          <div class="entry-form__grid">
-            <label class="entry-form__wide">
-              <span>训练名称</span>
-              <input v-model="form.name" type="text" placeholder="例如：下肢力量训练 / 慢跑 / 瑜伽恢复" />
-            </label>
-
-            <label>
-              <span>训练分类</span>
-              <select v-model="form.category">
-                <option>力量</option>
-                <option>有氧</option>
-                <option>功能</option>
-                <option>恢复</option>
-                <option>综合训练</option>
-              </select>
-            </label>
-
-            <label>
-              <span>强度</span>
-              <select v-model="form.intensity">
-                <option>低强度</option>
-                <option>中等</option>
-                <option>中高强度</option>
-                <option>高强度</option>
-              </select>
-            </label>
-
-            <label>
-              <span>状态</span>
-              <select v-model="form.status">
-                <option>已完成</option>
-                <option>恢复训练</option>
-              </select>
-            </label>
-
-            <label>
-              <span>时长</span>
-              <input v-model.number="form.durationMinutes" type="number" min="10" />
-            </label>
-
-            <label>
-              <span>消耗热量</span>
-              <input v-model.number="form.caloriesBurned" type="number" min="20" />
-            </label>
-
-            <label class="entry-form__wide">
-              <span>训练备注</span>
-              <input v-model="form.notes" type="text" placeholder="例如：偏恢复、配速稳定、今天状态轻松" />
-            </label>
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Done</p>
+            <h4>已完成训练日志</h4>
           </div>
+          <span class="panel__hint">{{ completedWorkouts.length }} 条记录</span>
+        </div>
 
-          <button class="submit-button" type="submit" :disabled="saving || !form.name.trim()">
-            {{ editingWorkoutId !== null ? "保存修改" : "保存训练记录" }}
-          </button>
-        </form>
+        <div class="workout-list">
+          <article v-for="workout in completedWorkouts" :key="workout.id" class="workout-card workout-card--done">
+            <div class="workout-card__main">
+              <span>{{ formatCompletedAt(workout.completedAt) }}</span>
+              <strong>{{ workout.title }}</strong>
+              <p>{{ workout.notes || "暂无备注" }}</p>
+            </div>
+            <div class="workout-card__meta">
+              <span>实际 {{ formatDuration(workout.actualSeconds) }}</span>
+              <span>{{ workout.calories }} kcal</span>
+              <span>{{ workout.intensity }}</span>
+            </div>
+            <button class="ghost-button" type="button" @click="undoComplete(workout)">恢复为未完成</button>
+          </article>
+          <div v-if="completedWorkouts.length === 0" class="empty-state">
+            <strong>暂无完成记录</strong>
+            <p>完成当前训练后，这里会同步生成训练日志。</p>
+          </div>
+        </div>
       </article>
     </section>
 
-    <article class="panel panel--table">
+    <article class="panel">
       <div class="panel__header">
         <div>
-          <p class="eyebrow">Session Log</p>
-          <h4>本周训练日志</h4>
-        </div>
-        <div class="filters">
-          <button
-            v-for="category in categories"
-            :key="category"
-            type="button"
-            class="filter-chip"
-            :class="{ 'filter-chip--active': category === activeCategory }"
-            @click="activeCategory = category"
-          >
-            {{ category }}
-          </button>
+          <p class="eyebrow">Custom Plan</p>
+          <h4>添加自定义训练</h4>
         </div>
       </div>
 
-      <div class="table-shell">
-        <table>
-          <thead>
-            <tr>
-              <th>时间</th>
-              <th>训练</th>
-              <th>分类</th>
-              <th>强度</th>
-              <th>状态</th>
-              <th>时长</th>
-              <th>热量</th>
-              <th>备注</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in filteredWorkouts" :key="item.id">
-              <td>{{ formatPerformedAt(item.performedAt) }}</td>
-              <td>{{ item.name }}</td>
-              <td><span class="table-pill">{{ item.category }}</span></td>
-              <td>{{ item.intensity }}</td>
-              <td>{{ item.status }}</td>
-              <td>{{ item.durationMinutes }} 分钟</td>
-              <td>{{ item.caloriesBurned }} kcal</td>
-              <td>{{ item.notes || "无备注" }}</td>
-              <td>
-                <div class="row-actions">
-                  <button class="row-action" type="button" :disabled="saving" @click="startEdit(item)">编辑</button>
-                  <button class="row-action row-action--danger" type="button" :disabled="saving" @click="handleDelete(item)">删除</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <form class="entry-form" @submit.prevent="handleSubmit">
+        <label class="entry-form__wide">
+          <span>训练名称</span>
+          <input v-model="form.title" type="text" placeholder="例如：下肢力量训练" />
+        </label>
+        <label>
+          <span>类型</span>
+          <select v-model="form.type">
+            <option>有氧</option>
+            <option>力量</option>
+            <option>瑜伽</option>
+            <option>HIIT</option>
+            <option>骑行</option>
+            <option>综合</option>
+          </select>
+        </label>
+        <label>
+          <span>强度</span>
+          <select v-model="form.intensity">
+            <option>低强度</option>
+            <option>中等</option>
+            <option>中高强度</option>
+            <option>高强度</option>
+          </select>
+        </label>
+        <label>
+          <span>计划分钟</span>
+          <input v-model.number="form.plannedMinutes" type="number" min="0" />
+        </label>
+        <label>
+          <span>预计热量</span>
+          <input v-model.number="form.calories" type="number" min="0" />
+        </label>
+        <label>
+          <span>建议时间</span>
+          <input v-model="form.suggestedTime" type="text" />
+        </label>
+        <label class="entry-form__wide">
+          <span>备注</span>
+          <input v-model="form.notes" type="text" placeholder="例如：控制配速、注意膝盖、训练后拉伸" />
+        </label>
+        <p v-if="formError" class="form-error">{{ formError }}</p>
+        <button class="primary-button" type="submit">加入未完成训练</button>
+      </form>
     </article>
+
+    <transition name="toast-fade">
+      <div v-if="toast" class="toast">{{ toast }}</div>
+    </transition>
   </section>
 </template>
 
 <style scoped>
-.exercise-board {
+.exercise-page {
   display: grid;
   gap: 18px;
   padding-right: 18px;
 }
 
-.hero,
-.panel {
-  position: relative;
-  overflow: hidden;
-  padding: 24px;
-  border-radius: 30px;
+.panel,
+.metric-card {
   border: 1px solid rgba(57, 87, 63, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.94);
   box-shadow: 0 18px 44px rgba(31, 44, 36, 0.08);
+}
+
+.panel {
+  padding: 22px;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 260px;
   gap: 18px;
-  background:
-    linear-gradient(140deg, rgba(253, 248, 239, 0.98), rgba(240, 247, 241, 0.97)),
-    linear-gradient(90deg, #fff, #fff);
-}
-
-.hero__layer {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 8% 18%, rgba(244, 175, 84, 0.24), transparent 23%),
-    radial-gradient(circle at 82% 14%, rgba(91, 154, 116, 0.2), transparent 22%),
-    linear-gradient(125deg, transparent 0%, rgba(255, 255, 255, 0.46) 48%, transparent 100%);
-  pointer-events: none;
-}
-
-.hero__main,
-.hero__aside {
-  position: relative;
-  z-index: 1;
+  background: linear-gradient(135deg, rgba(255, 251, 244, 0.98), rgba(240, 248, 242, 0.96));
 }
 
 .eyebrow {
   margin: 0 0 10px;
   font-size: 0.76rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-text-soft);
-}
-
-.hero__header,
-.hero__track-meta,
-.panel__header,
-.breakdown-card__head,
-.calendar-card__top,
-.entry-form__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.hero__header {
-  align-items: flex-start;
 }
 
 .hero h3,
@@ -595,365 +814,233 @@ async function handleDelete(item: WorkoutItem) {
 }
 
 .hero h3 {
-  max-width: 720px;
-  font-size: 2.15rem;
-  line-height: 1.1;
+  font-size: 2.05rem;
 }
 
 .hero__copy,
 .metric-card small,
 .panel__hint,
-.quick-card p,
-.quick-card small,
-.insight-card p,
-.breakdown-card p,
-.breakdown-card span,
-.mini-card span,
-.today-card span,
-.calendar-card small,
-table thead th {
+.workout-card p,
+.workout-card__main span,
+.workout-card__meta span,
+.tip-card p,
+.empty-state p,
+.current-card p,
+.current-card small,
+.target-bars span {
   color: var(--color-text-soft);
 }
 
 .hero__copy {
-  margin: 12px 0 0;
   max-width: 760px;
-  line-height: 1.78;
+  margin: 12px 0 0;
+  line-height: 1.75;
 }
 
-.hero__completion,
-.today-card,
-.mini-card,
-.metric-card,
-.quick-card,
-.insight-card,
-.breakdown-card,
-.calendar-card {
-  border-radius: 24px;
-  border: 1px solid rgba(57, 87, 63, 0.1);
-}
-
-.hero__completion {
-  min-width: 150px;
-  padding: 18px;
+.hero__progress {
   display: grid;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.62);
-  text-align: center;
-}
-
-.hero__completion strong {
-  font-size: 2rem;
-  color: #224330;
-}
-
-.hero__track {
-  margin-top: 22px;
+  align-content: center;
+  gap: 8px;
   padding: 20px;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.58);
-  backdrop-filter: blur(4px);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.62);
 }
 
-.hero__track-meta span {
-  color: var(--color-text-soft);
-}
-
-.hero__track-meta strong {
-  max-width: 660px;
+.hero__progress strong {
   color: var(--color-text);
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 2rem;
 }
 
-.hero__track-bar,
-.breakdown-card__bar {
-  height: 12px;
-  margin-top: 14px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(57, 87, 63, 0.08);
-}
-
-.hero__track-fill,
-.breakdown-card__fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-}
-
-.hero__track-fill {
-  background: linear-gradient(90deg, #2f4b3b, #74aa71, #f0c46e);
-}
-
-.metric-grid {
+.summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 18px;
+  gap: 12px;
 }
 
 .metric-card {
+  display: grid;
+  gap: 8px;
   padding: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(247, 248, 243, 0.62));
 }
 
 .metric-card span {
   color: var(--color-text-soft);
 }
 
+.metric-card strong,
+.current-card strong,
+.workout-card strong,
+.tip-card strong,
+.target-bars strong,
+.empty-state strong {
+  color: var(--color-text);
+}
+
 .metric-card strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 1.55rem;
-  color: var(--color-text);
+  font-size: 1.45rem;
 }
 
-.metric-card small {
-  display: block;
-  margin-top: 10px;
-  line-height: 1.6;
-}
-
-.hero__aside {
-  padding: 8px 0 0;
+.layout-grid {
   display: grid;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.82fr);
+  gap: 18px;
 }
 
-.today-card {
-  padding: 20px;
-  background: linear-gradient(160deg, rgba(37, 58, 47, 0.96), rgba(58, 94, 73, 0.92));
-  color: #f8f4ea;
-}
-
-.today-card .eyebrow {
-  color: rgba(236, 241, 237, 0.72);
-}
-
-.today-card strong {
-  display: block;
-  font-size: 2.2rem;
-  color: #fff8ef;
-}
-
-.today-card span {
-  display: block;
-  margin-top: 8px;
-  color: rgba(236, 241, 237, 0.76);
-}
-
-.aside-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.panel__header,
+.workout-card__meta {
+  display: flex;
+  justify-content: space-between;
   gap: 12px;
 }
 
-.mini-card {
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.56);
+.panel__header {
+  align-items: flex-start;
+  margin-bottom: 16px;
 }
 
-.mini-card strong {
-  display: block;
-  margin-top: 8px;
-  color: var(--color-text);
-  font-size: 1.2rem;
+.status-pill {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(57, 87, 63, 0.08);
+  color: #335140;
+  font-weight: 800;
 }
 
-.insight-list,
-.breakdown-list {
-  display: grid;
-  gap: 12px;
+.status-pill[data-active="true"] {
+  background: rgba(64, 135, 82, 0.16);
+  color: #236037;
 }
 
-.insight-card {
-  padding: 18px;
+.current-card,
+.empty-state,
+.tip-card,
+.target-bars article,
+.workout-card {
+  border: 1px solid rgba(57, 87, 63, 0.1);
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.58);
 }
 
-.insight-card[data-tone="positive"] {
-  border-color: rgba(88, 169, 111, 0.24);
+.current-card {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
 }
 
-.insight-card[data-tone="warning"] {
-  border-color: rgba(214, 164, 79, 0.28);
+.timer-display {
+  color: #273e32;
+  font-size: 3.4rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
-.insight-card strong,
-.quick-card strong,
-.breakdown-card strong,
-.calendar-card strong,
-table tbody td {
-  color: var(--color-text);
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.insight-card p {
+.button-row button,
+.primary-button,
+.ghost-button {
+  border: 0;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.button-row button,
+.ghost-button {
+  padding: 10px 13px;
+  border-radius: 999px;
+  background: rgba(57, 87, 63, 0.08);
+  color: #335140;
+}
+
+.button-row button:disabled,
+.primary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.primary-button {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #314f3f, #668f73);
+  color: #f7fbf8;
+}
+
+.target-bars,
+.tip-list,
+.workout-list {
+  display: grid;
+  gap: 12px;
+}
+
+.target-bars {
+  margin-bottom: 14px;
+}
+
+.target-bars article,
+.tip-card,
+.empty-state {
+  padding: 16px;
+}
+
+.tip-card[data-tone="positive"] {
+  border-color: rgba(67, 143, 82, 0.24);
+  background: rgba(239, 249, 239, 0.82);
+}
+
+.tip-card[data-tone="warning"] {
+  border-color: rgba(201, 148, 65, 0.28);
+  background: rgba(255, 246, 226, 0.86);
+}
+
+.tip-card p,
+.empty-state p {
   margin: 8px 0 0;
   line-height: 1.65;
 }
 
-.board-grid,
-.studio-grid {
+.workout-card {
   display: grid;
-  gap: 18px;
-}
-
-.board-grid {
-  grid-template-columns: minmax(0, 1.2fr) 360px;
-}
-
-.studio-grid {
-  grid-template-columns: 1fr;
-}
-
-.panel {
-  background: rgba(255, 252, 246, 0.92);
-}
-
-.panel--calendar {
-  background:
-    radial-gradient(circle at right top, rgba(125, 181, 145, 0.14), transparent 22%),
-    rgba(255, 252, 246, 0.94);
-}
-
-.panel--planner {
-  background:
-    radial-gradient(circle at left top, rgba(255, 197, 115, 0.14), transparent 22%),
-    rgba(255, 252, 246, 0.94);
-}
-
-.panel--breakdown {
-  background:
-    radial-gradient(circle at top right, rgba(255, 196, 113, 0.18), transparent 24%),
-    rgba(250, 248, 242, 0.96);
-}
-
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.calendar-card {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
   padding: 16px;
-  min-height: 148px;
-  background: rgba(247, 246, 242, 0.92);
 }
 
-.calendar-card__top span {
-  color: var(--color-text-soft);
+.workout-card--done {
+  background: rgba(240, 248, 241, 0.72);
 }
 
-.calendar-card__body {
+.workout-card__main {
   display: grid;
-  gap: 8px;
-  margin-top: 22px;
+  gap: 6px;
 }
 
-.calendar-card__body em {
-  font-style: normal;
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: var(--color-text);
+.workout-card__main p {
+  margin: 0;
 }
 
-.calendar-card--today {
-  box-shadow: inset 0 0 0 2px rgba(61, 105, 76, 0.2);
+.workout-card__meta {
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-.calendar-card--level-0 {
-  background: rgba(245, 244, 240, 0.92);
-}
-
-.calendar-card--level-1 {
-  background: linear-gradient(180deg, rgba(231, 243, 230, 0.96), rgba(247, 246, 242, 0.94));
-}
-
-.calendar-card--level-2 {
-  background: linear-gradient(180deg, rgba(203, 229, 201, 0.96), rgba(241, 246, 238, 0.94));
-}
-
-.calendar-card--level-3 {
-  background: linear-gradient(180deg, rgba(163, 205, 160, 0.96), rgba(231, 241, 229, 0.94));
-}
-
-.calendar-card--level-4 {
-  background: linear-gradient(180deg, rgba(112, 167, 110, 0.96), rgba(214, 232, 212, 0.94));
-}
-
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 6px;
-}
-
-.quick-card {
-  padding: 18px;
-  text-align: left;
-  border: 0;
-  cursor: pointer;
-  transition: transform 180ms ease, box-shadow 180ms ease;
-  background: linear-gradient(180deg, rgba(243, 247, 240, 0.96), rgba(255, 252, 246, 0.94));
-}
-
-.quick-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 28px rgba(45, 67, 52, 0.08);
-}
-
-.quick-card:disabled,
-.submit-button:disabled,
-.ghost-button:disabled,
-.row-action:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.quick-card__tag {
-  display: inline-flex;
-  width: fit-content;
-  padding: 6px 10px;
+.workout-card__meta span {
+  padding: 7px 10px;
   border-radius: 999px;
-  background: rgba(45, 73, 55, 0.08);
-  color: #315040;
-  font-size: 0.8rem;
+  background: rgba(49, 79, 63, 0.08);
+  color: #365745;
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
-.quick-card strong {
-  display: block;
-  margin-top: 12px;
-  font-size: 1.1rem;
-}
-
-.quick-card p,
-.quick-card small {
-  margin: 8px 0 0;
-  line-height: 1.6;
-}
-
 .entry-form {
-  margin-top: 18px;
-  padding: 20px;
-  border-radius: 26px;
-  background: rgba(241, 245, 239, 0.88);
-}
-
-.entry-form__header {
-  align-items: center;
-  margin-bottom: 14px;
-}
-
-.entry-form__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-}
-
-.entry-form__wide {
-  grid-column: span 2;
 }
 
 .entry-form label {
@@ -961,161 +1048,98 @@ table tbody td {
   gap: 8px;
 }
 
+.entry-form__wide {
+  grid-column: span 2;
+}
+
 .entry-form label span {
-  font-size: 0.86rem;
   color: var(--color-text-soft);
+  font-size: 0.86rem;
 }
 
 .entry-form input,
 .entry-form select {
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 14px;
+  box-sizing: border-box;
+  padding: 12px 13px;
   border: 1px solid rgba(57, 87, 63, 0.14);
-  background: rgba(255, 255, 255, 0.84);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
   color: var(--color-text);
 }
 
-.submit-button,
-.filter-chip,
-.ghost-button,
-.row-action {
-  border: 0;
+.entry-form .primary-button,
+.form-error {
+  grid-column: 1 / -1;
 }
 
-.submit-button {
-  margin-top: 16px;
-  padding: 11px 16px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #314f3f, #668f73);
-  color: #f7fbf8;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.ghost-button {
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: rgba(57, 87, 63, 0.08);
-  color: #335140;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.breakdown-card {
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.62);
-}
-
-.breakdown-card__bar {
-  margin-top: 12px;
-}
-
-.breakdown-card__fill {
-  background: linear-gradient(90deg, #2c4b3a, #76ab74);
-}
-
-.breakdown-card p {
-  margin: 10px 0 0;
-}
-
-.panel--table {
-  background: linear-gradient(180deg, rgba(255, 252, 246, 0.95), rgba(250, 248, 242, 0.94));
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.filter-chip {
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(57, 87, 63, 0.08);
-  color: #335140;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.filter-chip--active {
-  background: linear-gradient(135deg, #305742, #4e7d64);
-  color: #f7fbf8;
-}
-
-.table-shell {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-table th,
-table td {
-  padding: 14px 10px;
-  text-align: left;
-  border-bottom: 1px solid rgba(57, 87, 63, 0.1);
-  vertical-align: top;
-}
-
-.table-pill {
-  display: inline-flex;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(49, 79, 63, 0.08);
-  color: #315040;
-  font-weight: 700;
-  font-size: 0.82rem;
-}
-
-.row-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.row-action {
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(57, 87, 63, 0.08);
-  color: #335140;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.row-action--danger {
-  background: rgba(185, 77, 77, 0.12);
+.form-error {
+  margin: 0;
   color: #8a3c3c;
+  font-weight: 700;
+}
+
+.progress {
+  height: 10px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(57, 87, 63, 0.1);
+}
+
+.progress--thin {
+  height: 8px;
+}
+
+.progress__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #31513e, #78aa70, #f0c46e);
+}
+
+.toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 1200;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #335f42;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 16px 30px rgba(24, 33, 27, 0.18);
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: all 0.25s ease;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 @media (max-width: 1280px) {
   .hero,
-  .board-grid {
+  .summary-grid,
+  .layout-grid {
     grid-template-columns: 1fr;
-  }
-
-  .calendar-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 980px) {
-  .hero__header,
-  .hero__track-meta,
+@media (max-width: 880px) {
   .panel__header,
-  .breakdown-card__head,
-  .calendar-card__top,
-  .entry-form__header {
+  .workout-card,
+  .workout-card__meta {
+    grid-template-columns: 1fr;
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .metric-grid,
-  .quick-grid,
-  .entry-form__grid,
-  .aside-grid,
-  .calendar-grid {
+  .entry-form {
     grid-template-columns: 1fr;
   }
 
@@ -1123,8 +1147,8 @@ table td {
     grid-column: span 1;
   }
 
-  .row-actions {
-    flex-direction: column;
+  .timer-display {
+    font-size: 2.8rem;
   }
 }
 </style>

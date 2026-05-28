@@ -772,23 +772,27 @@ onUnmounted(() => {
       <article class="panel">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">This Week</p>
-            <h4>本周训练负荷</h4>
+            <p class="eyebrow">Daily Goals</p>
+            <h4>目标完成对照</h4>
           </div>
         </div>
 
-        <div class="load-chart">
-          <div v-for="point in summary.weeklyLoad" :key="point.label" class="load-chart__item">
-            <div class="load-chart__bars">
-              <span
-                class="load-chart__bar"
-                :style="{ height: `${Math.max(18, (point.durationMinutes / workloadPeak) * 120)}px` }"
-              ></span>
+        <div class="compliance-list">
+          <div v-for="row in summary.complianceTable" :key="row.module" class="compliance-row">
+            <div class="compliance-row__meta">
+              <strong>{{ row.module }}</strong>
+              <span>{{ row.target }}</span>
             </div>
-            <strong>{{ point.durationMinutes }} 分钟</strong>
-            <small>{{ point.caloriesBurned }} kcal</small>
-            <span>{{ point.steps }} 步</span>
-            <label>{{ point.label }}</label>
+
+            <div class="compliance-row__body">
+              <div class="progress progress--thin">
+                <span class="progress__fill" :style="{ width: progressWidth(row.completion) }"></span>
+              </div>
+              <div class="compliance-row__values">
+                <strong>{{ row.actual }}</strong>
+                <small>{{ row.note }}</small>
+              </div>
+            </div>
           </div>
         </div>
       </article>
@@ -834,27 +838,23 @@ onUnmounted(() => {
       <article class="panel">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">Daily Goals</p>
-            <h4>目标完成对照</h4>
+            <p class="eyebrow">This Week</p>
+            <h4>本周训练负荷</h4>
           </div>
         </div>
 
-        <div class="compliance-list">
-          <div v-for="row in summary.complianceTable" :key="row.module" class="compliance-row">
-            <div class="compliance-row__meta">
-              <strong>{{ row.module }}</strong>
-              <span>{{ row.target }}</span>
+        <div class="load-chart">
+          <div v-for="point in summary.weeklyLoad" :key="point.label" class="load-chart__item">
+            <div class="load-chart__bars">
+              <span
+                class="load-chart__bar"
+                :style="{ height: `${Math.max(18, (point.durationMinutes / workloadPeak) * 120)}px` }"
+              ></span>
             </div>
-
-            <div class="compliance-row__body">
-              <div class="progress progress--thin">
-                <span class="progress__fill" :style="{ width: progressWidth(row.completion) }"></span>
-              </div>
-              <div class="compliance-row__values">
-                <strong>{{ row.actual }}</strong>
-                <small>{{ row.note }}</small>
-              </div>
-            </div>
+            <strong>{{ point.durationMinutes }} 分钟</strong>
+            <small>{{ point.caloriesBurned }} kcal</small>
+            <span>{{ point.steps }} 步</span>
+            <label>{{ point.label }}</label>
           </div>
         </div>
       </article>
@@ -884,26 +884,48 @@ onUnmounted(() => {
 <style scoped>
 .board {
   display: grid;
-  gap: 18px;
+  gap: 16px;
+  padding-right: 18px;
 }
 
 .hero,
 .panel,
 .metric-card {
-  padding: 24px;
+  padding: 22px;
   border-radius: var(--radius-panel);
-  background: var(--color-surface);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(249, 251, 247, 0.7)),
+    var(--color-surface);
   border: 1px solid var(--color-line);
   box-shadow: var(--shadow-panel);
 }
 
 .hero {
+  position: relative;
+  overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) 340px;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.36fr);
+  gap: 18px;
+  align-items: stretch;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 1px, transparent 1px 12px),
-    linear-gradient(135deg, var(--color-surface-strong), rgba(247, 242, 232, 0.96));
+    radial-gradient(circle at 12% 8%, rgba(240, 205, 134, 0.22), transparent 30%),
+    radial-gradient(circle at 88% 18%, rgba(116, 169, 137, 0.2), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px 12px),
+    linear-gradient(135deg, rgba(255, 252, 244, 0.97), rgba(238, 246, 237, 0.95));
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), transparent 44%);
+  pointer-events: none;
+}
+
+.hero__content,
+.hero__action {
+  position: relative;
+  z-index: 1;
 }
 
 .eyebrow {
@@ -947,8 +969,10 @@ onUnmounted(() => {
 }
 
 .hero h3 {
-  font-size: 1.8rem;
-  line-height: 1.1;
+  max-width: 820px;
+  font-size: 1.9rem;
+  line-height: 1.14;
+  text-wrap: balance;
 }
 
 .hero__headline,
@@ -967,42 +991,45 @@ onUnmounted(() => {
 }
 
 .hero__headline {
-  margin: 12px 0 0;
-  font-size: 1rem;
-  line-height: 1.7;
+  margin: 10px 0 0;
+  max-width: 820px;
+  font-size: 0.98rem;
+  line-height: 1.66;
 }
 
 .hero__subheadline {
-  margin: 18px 0 0;
+  margin: 14px 0 0;
   max-width: 760px;
-  line-height: 1.8;
+  line-height: 1.68;
 }
 
 .hero__score {
-  min-width: 112px;
-  padding: 18px 16px;
+  min-width: 116px;
+  align-self: flex-start;
+  padding: 16px 14px;
   border-radius: var(--radius-card);
-  background: var(--color-surface-soft);
-  border: 1px solid var(--color-line);
+  background: linear-gradient(180deg, rgba(45, 69, 54, 0.94), rgba(74, 104, 80, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.16);
   text-align: center;
+  box-shadow: 0 14px 30px rgba(37, 62, 45, 0.14);
 }
 
 .hero__score strong {
   display: block;
   font-size: 2.4rem;
   line-height: 1;
-  color: var(--color-text);
+  color: #fffaf0;
 }
 
 .hero__score span {
   display: block;
   margin-top: 8px;
-  color: var(--color-text-soft);
+  color: rgba(255, 250, 240, 0.76);
   font-size: 0.86rem;
 }
 
 .hero__meta {
-  margin-top: 22px;
+  margin-top: 18px;
   align-items: stretch;
 }
 
@@ -1017,7 +1044,8 @@ onUnmounted(() => {
 .hero__goal,
 .hero__completion {
   flex: 1;
-  padding: 18px;
+  min-width: 0;
+  padding: 16px;
   display: grid;
   gap: 6px;
 }
@@ -1029,15 +1057,16 @@ onUnmounted(() => {
 
 .hero__goal strong,
 .hero__completion strong {
-  font-size: 1.6rem;
+  font-size: 1.36rem;
   color: var(--color-text);
+  line-height: 1.22;
 }
 
 .hero__focus {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .hero__focus .hero__focus-priority {
@@ -1047,27 +1076,32 @@ onUnmounted(() => {
 
 .hero__focus span,
 .plan-card__top label {
-  padding: 8px 12px;
+  padding: 7px 10px;
   border-radius: 999px;
   background: rgba(43, 74, 53, 0.08);
   color: #22422d;
   font-weight: 700;
+  font-size: 0.84rem;
 }
 
 .hero__action {
   display: grid;
   align-content: space-between;
-  gap: 18px;
-  padding: 22px;
+  gap: 16px;
+  padding: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(245, 250, 244, 0.84)),
+    var(--color-surface-soft);
+  backdrop-filter: blur(12px);
 }
 
 .hero__quick-actions {
-  margin-top: 20px;
+  margin-top: 16px;
   display: flex;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
-  padding-top: 20px;
+  border-top: 1px solid rgba(57, 87, 63, 0.08);
+  padding-top: 16px;
   justify-content: space-between;
 }
 
@@ -1087,9 +1121,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.65);
+  min-width: 180px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(57, 87, 63, 0.12);
 }
 
@@ -1133,7 +1168,9 @@ onUnmounted(() => {
 
 .hero__action h4 {
   margin: 0;
-  font-size: 1.45rem;
+  font-size: 1.34rem;
+  line-height: 1.28;
+  text-wrap: balance;
 }
 
 .hero__stamp-group {
@@ -1156,18 +1193,27 @@ onUnmounted(() => {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
 }
 
 .metric-card p {
   margin: 0 0 10px;
+  color: var(--color-text-soft);
+  font-weight: 700;
 }
 
 .metric-card strong {
   display: block;
-  font-size: 1.8rem;
+  font-size: 1.55rem;
+  line-height: 1.18;
   color: var(--color-text);
+}
+
+.metric-card small {
+  display: block;
+  margin-top: 10px;
+  line-height: 1.45;
 }
 
 .metric-card[data-tone="positive"] {
@@ -1182,7 +1228,7 @@ onUnmounted(() => {
 .module-grid,
 .table-grid {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .today-grid {
@@ -1191,14 +1237,19 @@ onUnmounted(() => {
 
 .module-grid,
 .table-grid {
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
 }
 
 .panel__header {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+}
+
+.panel__header h4 {
+  font-size: 1.08rem;
+  line-height: 1.24;
 }
 
 .today-list,
@@ -1213,9 +1264,11 @@ onUnmounted(() => {
 .module-card,
 .compliance-row,
 .plan-card {
-  padding: 18px;
-  border-radius: var(--radius-card);
-  background: var(--color-surface-soft);
+  padding: 15px;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(245, 249, 244, 0.82)),
+    var(--color-surface-soft);
 }
 
 .today-card {
@@ -1258,7 +1311,7 @@ onUnmounted(() => {
 
 .progress {
   height: 10px;
-  margin-top: 12px;
+  margin-top: 10px;
   border-radius: 999px;
   background: rgba(57, 87, 63, 0.08);
   overflow: hidden;
@@ -1279,9 +1332,10 @@ onUnmounted(() => {
 .load-chart {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
   align-items: end;
-  min-height: 220px;
+  min-height: 204px;
+  padding-top: 4px;
 }
 
 .load-chart__item {
@@ -1297,7 +1351,7 @@ onUnmounted(() => {
 }
 
 .load-chart__bar {
-  width: 38px;
+  width: clamp(24px, 4vw, 38px);
   border-radius: 18px 18px 10px 10px;
   background: linear-gradient(180deg, #9fcf8e, #42624b);
 }
@@ -1309,6 +1363,9 @@ onUnmounted(() => {
 
 .table-shell {
   overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(57, 87, 63, 0.08);
+  background: rgba(255, 255, 255, 0.48);
 }
 
 .table {
@@ -1318,9 +1375,10 @@ onUnmounted(() => {
 
 .table th,
 .table td {
-  padding: 12px 10px;
+  padding: 11px 10px;
   text-align: left;
   border-bottom: 1px solid rgba(57, 87, 63, 0.1);
+  white-space: nowrap;
 }
 
 .table th {
@@ -1407,30 +1465,41 @@ onUnmounted(() => {
 /* 交互按钮样式 */
 .btn {
   border: 0;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-weight: 600;
+  border-radius: var(--radius-control);
+  padding: 10px 13px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
   font-size: 0.85rem;
 }
 
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+}
+
 .btn--water {
-  background: rgba(85, 142, 233, 0.15);
-  color: #2b55a0;
+  background: rgba(67, 132, 171, 0.14);
+  color: #275d73;
 }
 
 .btn--water:hover {
-  background: rgba(85, 142, 233, 0.25);
+  background: rgba(67, 132, 171, 0.22);
 }
 
 .btn--workout {
-  background: rgba(46, 204, 113, 0.15);
-  color: #1e8449;
+  background: linear-gradient(135deg, #2f533e, #5d876a);
+  color: #fffaf0;
+  box-shadow: 0 10px 20px rgba(47, 87, 66, 0.14);
 }
 
 .btn--workout:hover {
-  background: rgba(46, 204, 113, 0.25);
+  background: linear-gradient(135deg, #263f31, #527b60);
 }
 
 .kanban-card-move-enter-active,
@@ -1453,7 +1522,10 @@ onUnmounted(() => {
 }
 
 .kanban-empty {
-  padding: 28px 18px;
+  min-height: 118px;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
   border-radius: 14px;
   background: rgba(240, 245, 239, 0.65);
   border: 1px dashed rgba(100, 125, 105, 0.18);
@@ -1466,14 +1538,16 @@ onUnmounted(() => {
 /* Kanban 看板列及其互动样式 */
 .kanban-board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
   gap: 16px;
+  align-items: start;
 }
 
 .kanban-list {
   display: grid;
   gap: 12px;
   margin-top: 12px;
+  min-height: 154px;
 }
 
 .kanban-list-inner {
@@ -1482,8 +1556,9 @@ onUnmounted(() => {
 }
 
 .kanban-card {
-  padding: 16px;
-  border-radius: 14px;
+  min-height: 132px;
+  padding: 15px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(80, 100, 85, 0.08);
   box-shadow: 0 4px 12px rgba(80, 100, 85, 0.03);
@@ -1525,7 +1600,14 @@ onUnmounted(() => {
 
 .kanban-card p {
   color: var(--color-text-soft);
-  margin-top: 4px;
+  margin: 6px 0 0;
+  line-height: 1.55;
+}
+
+.kanban-card small {
+  display: block;
+  margin-top: 8px;
+  line-height: 1.45;
 }
 
 .kanban-card--finished {
@@ -1542,12 +1624,12 @@ onUnmounted(() => {
   margin-top: 12px;
   width: 100%;
   border: 1px dashed rgba(60, 90, 70, 0.3);
-  background: transparent;
-  border-radius: 8px;
-  padding: 8px;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: var(--radius-control);
+  padding: 9px 10px;
   cursor: pointer;
   color: #3e5a45;
-  font-weight: 500;
+  font-weight: 700;
   transition: background 0.2s;
 }
 
@@ -1566,6 +1648,29 @@ onUnmounted(() => {
   border-radius: 4px;
   transform: rotate(-5deg);
   opacity: 0.6;
+}
+
+.kanban-column {
+  min-width: 0;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.kanban--todo {
+  background:
+    linear-gradient(180deg, rgba(255, 253, 247, 0.82), rgba(249, 251, 247, 0.76)),
+    var(--color-surface);
+}
+
+.kanban--doing {
+  background:
+    linear-gradient(180deg, rgba(247, 252, 252, 0.82), rgba(246, 250, 246, 0.76)),
+    var(--color-surface);
+}
+
+.kanban--done {
+  background:
+    linear-gradient(180deg, rgba(246, 251, 244, 0.86), rgba(249, 251, 247, 0.76)),
+    var(--color-surface);
 }
 
 .action-toast {
@@ -1620,6 +1725,14 @@ onUnmounted(() => {
     align-items: flex-start;
   }
 
+  .hero__quick-actions-main {
+    width: 100%;
+  }
+
+  .hero__quick-actions-main .btn {
+    flex: 1 1 140px;
+  }
+
   .water-ring {
     width: 100%;
     justify-content: flex-start;
@@ -1633,6 +1746,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 600px) {
+  .board {
+    padding-right: 0;
+  }
+
   .hero h3 {
     font-size: 1.35rem;
   }
@@ -1667,12 +1784,18 @@ onUnmounted(() => {
   .hero,
   .panel,
   .metric-card {
-    padding: 18px;
+    padding: 16px;
     border-radius: 20px;
   }
 
   .kanban-card {
     padding: 12px;
+    min-height: 118px;
+  }
+
+  .table th,
+  .table td {
+    padding: 10px 9px;
   }
 }
 

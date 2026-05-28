@@ -316,7 +316,7 @@ const bodyMiniCards = computed(() => {
   return [
     {
       key: "weight",
-      title: "体重变化",
+      title: "体重趋势",
       latest: `${props.profile.weightKg.toFixed(1)} kg`,
       delta: trendReady ? `${weightTrendDelta.value > 0 ? "+" : ""}${weightTrendDelta.value.toFixed(1)} kg` : "样本不足",
       tone: weightTrendDelta.value <= 0 ? "positive" : "warning",
@@ -325,7 +325,7 @@ const bodyMiniCards = computed(() => {
     },
     {
       key: "body-fat",
-      title: "体脂变化",
+      title: "体脂趋势",
       latest: `${props.profile.bodyFatRate ?? "--"}%`,
       delta: trendReady ? `${bodyFatTrendDelta.value > 0 ? "+" : ""}${bodyFatTrendDelta.value.toFixed(1)}%` : "样本不足",
       tone: bodyFatTrendDelta.value <= 0 ? "positive" : "warning",
@@ -425,37 +425,37 @@ const archiveRows = computed(() => [
     category: "基础资料",
     label: "年龄 / 性别",
     value: `${props.profile.age} 岁 / ${props.profile.gender || "未设置"}`,
-    note: "影响基础代谢和建议阈值"
+    note: "用于建立代谢估算和健康建议基线"
   },
   {
     category: "当前状态",
     label: "身高 / 体重",
     value: `${props.profile.heightCm} cm / ${props.profile.weightKg} kg`,
-    note: "用于 BMI、目标体重和热量估算"
+    note: "用于计算 BMI、目标差距和热量建议"
   },
   {
     category: "体成分",
     label: "体脂率 / BMI",
     value: `${props.profile.bodyFatRate ?? "--"}% / ${props.profile.bmi ?? "--"}`,
-    note: "观察减脂而不是只盯体重"
+    note: "帮助区分减脂、增肌和单纯体重波动"
   },
   {
     category: "目标设定",
     label: "目标体重 / 目标体脂",
     value: `${props.profile.targetWeightKg} kg / ${props.profile.targetBodyFatRate ?? "--"}%`,
-    note: "让饮食与训练计划更有方向"
+    note: "让饮食、训练和趋势判断拥有明确参照"
   },
   {
     category: "执行节奏",
     label: "训练 / 睡眠目标",
     value: `${props.profile.weeklyWorkoutTarget} 次每周 / ${props.profile.sleepTargetHours} 小时`,
-    note: "决定恢复与长期可持续性"
+    note: "影响恢复质量和长期执行稳定性"
   },
   {
     category: "生活方式",
     label: "工作 / 烟酒情况",
     value: `${props.profile.workStyle || "待补充"} / ${props.profile.smokingStatus} / ${props.profile.drinkingFrequency}`,
-    note: "帮助判断恢复压力与风险因素"
+    note: "帮助识别恢复压力、食欲波动和健康风险"
   }
 ]);
 
@@ -514,12 +514,12 @@ function fieldErrorFor(key: string) {
         <div class="hero__heading">
           <div>
             <p class="eyebrow">Body Archive</p>
-            <h3>身体档案总览</h3>
+            <h3>身体档案与目标基线</h3>
             <p class="hero__lead">{{ profile.healthSummary }}</p>
           </div>
 
           <div class="hero__identity">
-            <span class="hero__identity-label">当前档案</span>
+            <span class="hero__identity-label">档案对象</span>
             <strong>{{ profile.nickname || "当前用户" }}</strong>
             <small>{{ habitSummary }}</small>
           </div>
@@ -530,7 +530,7 @@ function fieldErrorFor(key: string) {
             <div class="weight-bar-card__header">
               <div>
                 <span class="weight-bar-card__eyebrow">Weight Progress</span>
-                <strong>体重目标进度</strong>
+                <strong>体重目标差距</strong>
               </div>
               <small>{{ weightProgressLabel }}</small>
             </div>
@@ -599,7 +599,7 @@ function fieldErrorFor(key: string) {
     <section class="content-grid">
       <div class="content-stack">
         <article class="panel">
-          <p class="eyebrow">核心指标</p>
+          <p class="eyebrow">Key Metrics</p>
 
           <div class="metrics">
             <div>
@@ -632,9 +632,9 @@ function fieldErrorFor(key: string) {
           <div class="panel__header panel__header--compact">
             <div>
               <p class="eyebrow">Mini Trends</p>
-              <h4>近期指标微型图表</h4>
+              <h4>近期体重与体脂趋势</h4>
             </div>
-            <span class="panel__badge">趋势来自追踪模块最近 10 天</span>
+            <span class="panel__badge">来自趋势模块最近 10 条记录</span>
           </div>
 
           <div class="mini-trends">
@@ -647,7 +647,7 @@ function fieldErrorFor(key: string) {
               <svg v-if="item.path" class="mini-trend-card__chart" viewBox="0 0 280 84" preserveAspectRatio="none" aria-hidden="true">
                 <path class="mini-trend-card__path" :d="item.path"></path>
               </svg>
-              <div v-else class="mini-trend-card__empty">暂无足够历史数据，保存后会自动生成变化曲线。</div>
+              <div v-else class="mini-trend-card__empty">历史记录不足，连续保存后会自动生成变化曲线。</div>
 
               <div class="mini-trend-card__meta">
                 <span>{{ item.hint }}</span>
@@ -661,10 +661,10 @@ function fieldErrorFor(key: string) {
           <div class="panel__header panel__header--compact">
             <div>
               <p class="eyebrow">Profile Matrix</p>
-              <h4>个人数据总览表</h4>
+              <h4>个人数据矩阵</h4>
             </div>
             <div style="display: flex; gap: 8px; align-items: center">
-              <span class="panel__badge">重点关注“当前状态”和“目标设定”</span>
+              <span class="panel__badge">展示建议生成所依赖的关键字段</span>
             </div>
           </div>
 
@@ -695,8 +695,8 @@ function fieldErrorFor(key: string) {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Profile Editor</p>
-            <h4>健康档案与目标设置</h4>
-            <p class="panel__intro">把基础数据、目标和生活方式分开填写，后续看板和建议会更贴近你的真实情况。</p>
+            <h4>档案编辑与目标校准</h4>
+            <p class="panel__intro">补全基础数据、目标和生活方式，后续看板、饮食规划与智能建议会更贴近真实情况。</p>
           </div>
           <div class="panel__actions">
             <button class="save btn btn--primary" type="button" :disabled="saving || loading" @click="handleSave">
@@ -723,8 +723,8 @@ function fieldErrorFor(key: string) {
         <template v-else>
           <section class="form-section">
             <div class="form-section__head">
-              <h5>基础身份</h5>
-              <p>先补全最核心的个人资料，便于系统建立基线。</p>
+              <h5>基础信息</h5>
+              <p>先补全身份和工作状态，帮助系统建立个性化判断基线。</p>
             </div>
 
             <div class="fields fields--four">
@@ -765,7 +765,7 @@ function fieldErrorFor(key: string) {
           <section class="form-section">
             <div class="form-section__head">
               <h5>身体数据</h5>
-              <p>这里决定你的身体画像，也是后续趋势分析的输入基础。</p>
+              <p>这些数值决定身体画像，也是趋势分析和目标差距计算的基础。</p>
             </div>
 
             <div class="fields fields--four">
@@ -800,7 +800,7 @@ function fieldErrorFor(key: string) {
           <section class="form-section">
             <div class="form-section__head">
               <h5>目标设置</h5>
-              <p>别只写“想瘦一点”，把目标落成可执行的体重、睡眠和训练节奏。</p>
+              <p>把目标落成可衡量的体重、体脂、热量、睡眠和训练节奏。</p>
             </div>
 
             <div class="fields fields--four">
@@ -849,7 +849,7 @@ function fieldErrorFor(key: string) {
                 <span>目标提示</span>
                 <div class="field-card">
                   <strong>{{ profile.goalSummary }}</strong>
-                  <small>目标越清晰，建议越准确</small>
+                  <small>目标越具体，饮食和训练建议越准确</small>
                 </div>
               </label>
             </div>
@@ -858,7 +858,7 @@ function fieldErrorFor(key: string) {
           <section class="form-section">
             <div class="form-section__head">
               <h5>生活方式</h5>
-              <p>这些不是附加项，它们会直接影响恢复、食欲和执行稳定性。</p>
+              <p>生活方式会影响恢复、食欲、训练表现和执行稳定性。</p>
             </div>
 
             <div class="fields fields--two">
@@ -887,7 +887,7 @@ function fieldErrorFor(key: string) {
           <section class="form-section">
             <div class="form-section__head">
               <h5>习惯描述</h5>
-              <p>尽量写真实的日常情况，不必写得完美，真实比“标准答案”更有用。</p>
+              <p>记录真实日常即可，系统会基于习惯描述识别更可持续的调整方向。</p>
             </div>
 
             <div class="fields">
@@ -927,7 +927,7 @@ function fieldErrorFor(key: string) {
       <div class="panel__header panel__header--compact">
         <div>
           <p class="eyebrow">Lifestyle Tags</p>
-          <h4>生活习惯标签</h4>
+          <h4>生活方式摘要</h4>
         </div>
       </div>
       <div class="habits">
@@ -940,7 +940,7 @@ function fieldErrorFor(key: string) {
       <div class="unsaved-dialog">
         <div class="unsaved-dialog__icon">⚠</div>
         <h4>有未保存的修改</h4>
-        <p>当前表单中存在尚未保存的身体档案变动信息。切换页面后这些修改将会丢失。</p>
+        <p>当前表单中有尚未保存的身体档案修改。离开前建议先保存，避免影响后续建议和统计。</p>
         <div class="unsaved-dialog__actions">
           <button class="btn btn--primary" @click="handleSave(); showUnsavedDialog = false">保存并离开</button>
           <button class="btn btn--secondary" @click="confirmDiscard">放弃修改</button>

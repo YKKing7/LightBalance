@@ -109,11 +109,11 @@ watch(
   { immediate: true }
 );
 
-const title = computed(() => (props.mode === "profile" ? "个人信息" : "偏好设置"));
+const title = computed(() => (props.mode === "profile" ? "个人资料与健康档案" : "账户安全设置"));
 const description = computed(() =>
   props.mode === "profile"
-    ? "编辑个人资料、身体数据、健康目标与生活方式。"
-    : "管理账号安全设置，查看账号状态。"
+    ? "维护身体数据、健康目标与生活方式，让应用建议更贴近你。"
+    : "管理邮箱、密码和登录状态，保持账号信息清晰可控。"
 );
 
 const bmiDisplay = computed(() => {
@@ -172,7 +172,7 @@ function handleSavePassword() {
       <div class="profile-panel__header-left">
         <div class="identity-card__avatar">{{ nickname.slice(0, 1).toUpperCase() }}</div>
         <div>
-          <p class="profile-panel__eyebrow">User Center</p>
+          <p class="profile-panel__eyebrow">Account Center</p>
           <h3>{{ title }}</h3>
           <p class="profile-panel__desc">{{ profile?.nickname ?? nickname }} · @{{ username }} · {{ profile?.email ?? "未绑定邮箱" }}</p>
         </div>
@@ -204,12 +204,12 @@ function handleSavePassword() {
           <template v-else>
             <!-- 基本信息 -->
             <article class="section-card section-card--basic">
-              <p class="section-card__title">&#x1F464; 基本信息</p>
+              <p class="section-card__title">&#x1F464; 基础资料</p>
 
               <div class="profile-fields profile-fields--two">
                 <label class="profile-field">
                   <span>昵称</span>
-                  <input v-model.trim="form.nickname" type="text" placeholder="请输入昵称" />
+                  <input v-model.trim="form.nickname" type="text" placeholder="例如：小林" />
                 </label>
 
                 <label class="profile-field profile-field--readonly">
@@ -264,7 +264,7 @@ function handleSavePassword() {
 
             <!-- 目标设定 -->
             <article class="section-card section-card--goal">
-              <p class="section-card__title">&#x1F3AF; 目标设定</p>
+              <p class="section-card__title">&#x1F3AF; 健康目标</p>
 
               <div class="profile-fields profile-fields--three">
                 <label class="profile-field">
@@ -298,7 +298,7 @@ function handleSavePassword() {
 
             <!-- 生活方式 -->
             <article class="section-card section-card--lifestyle">
-              <p class="section-card__title">&#x1F3E0; 生活方式</p>
+              <p class="section-card__title">&#x1F3E0; 生活方式画像</p>
 
               <div class="profile-fields profile-fields--four">
                 <label class="profile-field">
@@ -342,26 +342,26 @@ function handleSavePassword() {
 
             <!-- 习惯记录 -->
             <article class="section-card section-card--habit">
-              <p class="section-card__title">&#x1F4DD; 习惯记录</p>
+              <p class="section-card__title">&#x1F4DD; 日常习惯描述</p>
 
               <label class="profile-field">
                 <span>睡眠习惯</span>
-                <textarea v-model.trim="form.habitSleep" rows="2" placeholder="例如：23:30-07:00"></textarea>
+                <textarea v-model.trim="form.habitSleep" rows="2" placeholder="例如：工作日 23:30 入睡，7:00 起床"></textarea>
               </label>
 
               <label class="profile-field">
                 <span>饮食习惯</span>
-                <textarea v-model.trim="form.habitDiet" rows="2" placeholder="例如：三餐规律，偶尔夜宵"></textarea>
+                <textarea v-model.trim="form.habitDiet" rows="2" placeholder="例如：三餐规律，下午容易加餐"></textarea>
               </label>
 
               <label class="profile-field">
                 <span>运动习惯</span>
-                <textarea v-model.trim="form.habitExercise" rows="2" placeholder="例如：每周力量训练 3 次"></textarea>
+                <textarea v-model.trim="form.habitExercise" rows="2" placeholder="例如：每周力量训练 3 次，周末步行较多"></textarea>
               </label>
 
               <div class="section-card__actions">
                 <button class="profile-save" type="button" :disabled="saving" @click="handleSave">
-                  {{ saving ? "保存中..." : "保存全部资料" }}
+                  {{ saving ? "保存中..." : "保存健康档案" }}
                 </button>
               </div>
             </article>
@@ -371,7 +371,7 @@ function handleSavePassword() {
         <template v-else>
           <!-- 账号信息 -->
           <article class="section-card section-card--account">
-            <p class="section-card__title">&#x1F511; 账号信息</p>
+            <p class="section-card__title">&#x1F511; 账号概览</p>
             <div class="account-info">
               <div class="info-row">
                 <span>&#x1F194; 用户 ID</span>
@@ -394,11 +394,11 @@ function handleSavePassword() {
 
           <!-- 邮箱修改 -->
           <article class="section-card section-card--email">
-            <p class="section-card__title">&#x2709; 修改邮箱</p>
+            <p class="section-card__title">&#x2709; 邮箱绑定</p>
             <div class="profile-fields profile-fields--two">
               <label class="profile-field">
                 <span>新邮箱地址</span>
-                <input v-model.trim="settingsForm.email" type="email" placeholder="请输入新邮箱" />
+                <input v-model.trim="settingsForm.email" type="email" placeholder="name@example.com" />
               </label>
               <div class="field-action">
                 <button class="profile-save" type="button" :disabled="saving" @click="handleSaveEmail">
@@ -410,7 +410,7 @@ function handleSavePassword() {
 
           <!-- 密码修改 -->
           <article class="section-card section-card--password">
-            <p class="section-card__title">&#x1F512; 修改密码</p>
+            <p class="section-card__title">&#x1F512; 登录密码</p>
 
             <div class="profile-fields profile-fields--three">
               <label class="profile-field">
@@ -436,8 +436,8 @@ function handleSavePassword() {
 
           <!-- 退出登录 -->
           <article class="section-card section-card--danger">
-            <p class="section-card__title">&#x1F6AA; 账号操作</p>
-            <p class="section-card__hint">退出登录后将返回登录页面，需要重新输入账号密码。</p>
+            <p class="section-card__title">&#x1F6AA; 登录状态</p>
+            <p class="section-card__hint">退出后将返回登录页面，再次使用需要重新输入账号密码。</p>
             <div class="section-card__actions">
               <button class="profile-logout" type="button" @click="$emit('logout')">退出登录</button>
             </div>

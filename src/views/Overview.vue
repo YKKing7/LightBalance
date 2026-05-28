@@ -78,7 +78,7 @@ const timeContext = computed(() => {
 const dynamicGreeting = computed(() => `${timeContext.value.greeting}，${props.summary.momentumLabel}`);
 
 const contextualHeadline = computed(() => {
-  return `${timeContext.value.label}阶段先完成高优先级任务，今天会更稳。`;
+  return `${timeContext.value.label}先处理高优先级任务，让饮食、训练和恢复都跟上节奏。`;
 });
 
 const todoCards = ref<KanbanCard[]>([]);
@@ -525,7 +525,7 @@ onUnmounted(() => {
     <article class="hero">
       <div class="hero__content">
         <div class="hero__topline">
-          <p class="eyebrow">Today Overview</p>
+          <p class="eyebrow">Today Dashboard</p>
           <span class="hero__date">{{ summary.dateLabel }}</span>
         </div>
 
@@ -536,7 +536,7 @@ onUnmounted(() => {
           </div>
           <div class="hero__score">
             <strong>{{ summary.todayScore }}</strong>
-            <span>今日节奏分</span>
+            <span>今日状态分</span>
           </div>
         </div>
 
@@ -559,7 +559,7 @@ onUnmounted(() => {
         <!-- 互动：快捷记录按键与操作区 -->
         <div class="hero__quick-actions">
           <div class="hero__quick-actions-main">
-            <span class="hero__quick-actions-label">快捷打卡</span>
+          <span class="hero__quick-actions-label">快速记录</span>
             <button class="btn btn--water" :disabled="interacting === 'water'" @click="handleInteraction('drink_water')">
               {{ interacting === 'water' ? '记录中...' : '喝水 +200ml' }}
             </button>
@@ -592,12 +592,12 @@ onUnmounted(() => {
       </div>
 
       <div class="hero__action">
-        <p class="eyebrow">Next Action</p>
+        <p class="eyebrow">Recommended Action</p>
         <h4>{{ topPriorityCard?.title || summary.nextReminder }}</h4>
         <p>{{ topPriorityCard?.detail || summary.plannedToday[0]?.detail }}</p>
 
         <div class="hero__stamp-group">
-          <span class="hero__stamp">档案同步：{{ updatedAtLabel }}</span>
+          <span class="hero__stamp">档案更新时间：{{ updatedAtLabel }}</span>
           <span class="hero__stamp hero__stamp--soft">整体完成度 {{ summary.completionRate }}%</span>
         </div>
       </div>
@@ -622,12 +622,12 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">To Do</p>
-            <h4>待完成 · 计划</h4>
+            <h4>待完成计划</h4>
           </div>
         </div>
 
         <div class="plan-list kanban-list">
-          <div v-if="todoEmpty" class="kanban-empty">暂无待办任务，今天节奏不错 ☀️</div>
+          <div v-if="todoEmpty" class="kanban-empty">暂无待办任务，今天的基础安排已经清空。</div>
           <TransitionGroup name="kanban-card-move" tag="div" class="kanban-list-inner">
             <div
               v-for="item in todoCards"
@@ -672,12 +672,12 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Pending / Doing</p>
-            <h4>进行中 · 要推进</h4>
+            <h4>进行中任务</h4>
           </div>
         </div>
 
         <div class="today-list kanban-list">
-          <div v-if="doingEmpty" class="kanban-empty">所有任务皆已排程，暂无进行中的事项</div>
+          <div v-if="doingEmpty" class="kanban-empty">暂无进行中的事项，可以从待完成计划中拖入一项开始推进。</div>
           <TransitionGroup name="kanban-card-move" tag="div" class="kanban-list-inner">
             <div
               v-for="item in doingCards"
@@ -713,12 +713,12 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Done</p>
-            <h4>已完成 · 棒极了</h4>
+            <h4>已完成事项</h4>
           </div>
         </div>
 
         <div class="today-list kanban-list">
-          <div v-if="doneEmpty" class="kanban-empty">今天还没有完成的任务，开始推进第一张卡片吧</div>
+          <div v-if="doneEmpty" class="kanban-empty">今天还没有完成记录，先从一项小任务开始。</div>
           <TransitionGroup name="kanban-card-move" tag="div" class="kanban-list-inner">
             <div
               v-for="item in doneCards"
@@ -751,7 +751,7 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Today Focus</p>
-            <h4>关键模块完成度</h4>
+            <h4>饮食、训练与恢复完成度</h4>
           </div>
         </div>
 
@@ -773,7 +773,7 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">This Week</p>
-            <h4>本周训练负荷节奏</h4>
+            <h4>本周训练负荷</h4>
           </div>
         </div>
 
@@ -799,7 +799,7 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Recent Sessions</p>
-            <h4>最近训练记录</h4>
+            <h4>近期训练明细</h4>
           </div>
         </div>
 
@@ -835,7 +835,7 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Daily Goals</p>
-            <h4>今日与本周目标对照</h4>
+            <h4>目标完成对照</h4>
           </div>
         </div>
 
@@ -863,8 +863,8 @@ onUnmounted(() => {
     <!-- 睡眠更新弹窗 -->
     <div v-if="showSleepModal" class="modal-overlay" @click.self="showSleepModal = false">
       <div class="modal-content">
-        <h3>记录睡眠状况</h3>
-        <p>更新你昨晚的睡眠时长（小时）：</p>
+        <h3>更新睡眠记录</h3>
+        <p>填写昨晚睡眠时长，系统会同步到趋势与恢复分析。</p>
         <input type="number" v-model.number="sleepDuration" step="0.5" min="0" max="24" />
         <div class="modal-btns">
           <button @click="saveSleep" class="btn-save">保存</button>

@@ -63,7 +63,7 @@ const defaultWeeklyGoal: WeeklyGoal = {
 const defaultWorkouts: Workout[] = [
   {
     id: 101,
-    title: "快走燃脂",
+    title: "快走有氧",
     type: "有氧",
     intensity: "中等",
     plannedMinutes: 35,
@@ -71,13 +71,13 @@ const defaultWorkouts: Workout[] = [
     completed: true,
     actualSeconds: 31 * 60,
     date: getTodayDateString(),
-    notes: "控制心率，保持可持续节奏。",
+    notes: "控制心率，保持能连续完成的稳定节奏。",
     suggestedTime: "晚饭后 1 小时",
     completedAt: new Date().toISOString()
   },
   {
     id: 102,
-    title: "核心力量",
+    title: "核心稳定训练",
     type: "力量",
     intensity: "中高强度",
     plannedMinutes: 30,
@@ -91,7 +91,7 @@ const defaultWorkouts: Workout[] = [
   },
   {
     id: 103,
-    title: "瑜伽拉伸",
+    title: "恢复拉伸",
     type: "瑜伽",
     intensity: "低强度",
     plannedMinutes: 25,
@@ -105,7 +105,7 @@ const defaultWorkouts: Workout[] = [
   },
   {
     id: 104,
-    title: "HIIT 间歇",
+    title: "HIIT 间歇训练",
     type: "HIIT",
     intensity: "高强度",
     plannedMinutes: 18,
@@ -119,7 +119,7 @@ const defaultWorkouts: Workout[] = [
   },
   {
     id: 105,
-    title: "骑行有氧",
+    title: "骑行耐力",
     type: "骑行",
     intensity: "中等",
     plannedMinutes: 40,
@@ -202,7 +202,7 @@ const summaryCards = computed(() => [
   {
     label: "已完成次数",
     value: `${weeklySummary.value.completedSessions} 次`,
-    note: `还需 ${weeklySummary.value.remainingSessions} 次`
+    note: `距离目标还差 ${weeklySummary.value.remainingSessions} 次`
   },
   {
     label: "累计分钟数",
@@ -222,15 +222,15 @@ const trainingTips = computed(() => {
 
   if (summary.remainingSessions > 0) {
     tips.push({
-      title: "训练次数还需推进",
-      detail: `本周还需要完成 ${summary.remainingSessions} 次训练，可优先选择 20 到 35 分钟的低门槛计划。`,
+      title: "训练次数还需要推进",
+      detail: `本周还需要完成 ${summary.remainingSessions} 次训练，可优先选择 20 到 35 分钟、容易开始的计划。`,
       tone: summary.remainingSessions >= 3 ? "warning" : "neutral"
     });
   }
 
   if (summary.totalMinutes < weeklyGoal.targetMinutes) {
     tips.push({
-      title: "累计时长仍有缺口",
+      title: "累计时长还有缺口",
       detail: `距离周目标还差 ${weeklyGoal.targetMinutes - summary.totalMinutes} 分钟，可安排快走、骑行或瑜伽拉伸补足。`,
       tone: "neutral"
     });
@@ -239,14 +239,14 @@ const trainingTips = computed(() => {
   if (summary.completedSessions >= weeklyGoal.targetSessions && summary.totalMinutes >= weeklyGoal.targetMinutes) {
     tips.push({
       title: "本周训练目标已达成",
-      detail: "后续重点可以放在恢复、睡眠和轻量活动，保持节奏比额外加量更重要。",
+      detail: "后续重点可以放在恢复、睡眠和轻量活动，保持稳定节奏比临时加量更重要。",
       tone: "positive"
     });
   }
 
   if (summary.highIntensityCount >= 3) {
     tips.push({
-      title: "高强度训练偏多",
+      title: "高强度训练略多",
       detail: "连续高强度训练容易影响恢复，建议穿插低强度有氧或拉伸，给肌肉和关节留出恢复时间。",
       tone: "warning"
     });
@@ -255,7 +255,7 @@ const trainingTips = computed(() => {
   if (tips.length === 0) {
     tips.push({
       title: "训练节奏稳定",
-      detail: "当前计划有完成也有待执行任务，适合继续按计划推进，不需要突然增加训练量。",
+      detail: "当前既有已完成记录，也有待执行任务，适合继续按计划推进，不需要突然增加训练量。",
       tone: "positive"
     });
   }
@@ -512,9 +512,9 @@ onUnmounted(() => {
     <article class="hero panel">
       <div class="hero__content">
         <p class="eyebrow">Weekly Training</p>
-        <h3>训练计划执行与本周完成反馈</h3>
+        <h3>训练计划、计时与完成反馈</h3>
         <p class="hero__copy">
-          将训练目标、当前任务、计时器、未完成计划和训练日志放在同一页面，形成计划、执行、反馈闭环。
+          把周目标、待训练任务、实时计时和完成日志放在同一页面，让训练从安排到复盘更连贯。
         </p>
       </div>
 
@@ -540,7 +540,7 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Current Session</p>
-            <h4>当前训练任务</h4>
+            <h4>当前执行任务</h4>
           </div>
           <span class="status-pill" :data-active="timerRunning">{{ timerRunning ? "计时中" : "待执行" }}</span>
         </div>
@@ -565,7 +565,7 @@ onUnmounted(() => {
 
         <div v-else class="empty-state">
           <strong>尚未选择训练</strong>
-          <p>从未完成训练计划中点击“开始训练”，这里会显示任务信息和计时器。</p>
+          <p>从未完成计划中选择一项训练，这里会显示任务信息、建议时间和实时计时。</p>
         </div>
       </article>
 
@@ -573,7 +573,7 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Feedback</p>
-            <h4>周统计与训练建议</h4>
+            <h4>本周目标反馈</h4>
           </div>
         </div>
 
@@ -615,7 +615,7 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Todo</p>
-            <h4>未完成训练计划</h4>
+            <h4>待执行训练计划</h4>
           </div>
           <span class="panel__hint">{{ incompleteWorkouts.length }} 项待完成</span>
         </div>
@@ -638,7 +638,7 @@ onUnmounted(() => {
           </article>
           <div v-if="incompleteWorkouts.length === 0" class="empty-state">
             <strong>未完成任务已清空</strong>
-            <p>可以添加自定义训练，或在已完成日志中撤销某条记录用于演示。</p>
+            <p>可以添加新的自定义训练，或从完成日志中恢复一条记录继续安排。</p>
           </div>
         </div>
       </article>
@@ -647,7 +647,7 @@ onUnmounted(() => {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Done</p>
-            <h4>已完成训练日志</h4>
+            <h4>训练完成日志</h4>
           </div>
           <span class="panel__hint">{{ completedWorkouts.length }} 条记录</span>
         </div>
@@ -668,7 +668,7 @@ onUnmounted(() => {
           </article>
           <div v-if="completedWorkouts.length === 0" class="empty-state">
             <strong>暂无完成记录</strong>
-            <p>完成当前训练后，这里会同步生成训练日志。</p>
+          <p>完成训练后，这里会自动生成日志，用于统计本周次数、时长和消耗。</p>
           </div>
         </div>
       </article>
@@ -678,14 +678,14 @@ onUnmounted(() => {
       <div class="panel__header">
         <div>
           <p class="eyebrow">Custom Plan</p>
-          <h4>添加自定义训练</h4>
+          <h4>创建自定义训练</h4>
         </div>
       </div>
 
       <form class="entry-form" @submit.prevent="handleSubmit">
         <label class="entry-form__wide">
           <span>训练名称</span>
-          <input v-model="form.title" type="text" placeholder="例如：下肢力量训练" />
+          <input v-model="form.title" type="text" placeholder="例如：下肢力量与核心稳定" />
         </label>
         <label>
           <span>类型</span>
@@ -721,10 +721,10 @@ onUnmounted(() => {
         </label>
         <label class="entry-form__wide">
           <span>备注</span>
-          <input v-model="form.notes" type="text" placeholder="例如：控制配速、注意膝盖、训练后拉伸" />
+          <input v-model="form.notes" type="text" placeholder="例如：控制配速、注意膝盖、训练后做拉伸" />
         </label>
         <p v-if="formError" class="form-error">{{ formError }}</p>
-        <button class="primary-button" type="submit">加入未完成训练</button>
+        <button class="primary-button" type="submit">加入待执行计划</button>
       </form>
     </article>
 

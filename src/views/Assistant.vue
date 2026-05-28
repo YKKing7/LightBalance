@@ -82,13 +82,13 @@ const modelLabel = computed(() => props.plan.modelLabel || "[L]gemini-2.5-flash"
 
 const subtitleLabel = computed(() => {
   if (props.probeBusy) return "正在检测 Gemini 连通状态";
-  return "在线健康助理";
+  return "结合档案、饮食与训练记录的健康助理";
 });
 
 const probeResultLabel = computed(() => {
   if (props.probeBusy) return "Gemini 检测中";
   if (!props.probeResult) return "";
-  return props.probeResult.ok ? "Gemini 验证成功" : "Gemini 验证失败";
+  return props.probeResult.ok ? "Gemini 连接正常" : "Gemini 连接失败";
 });
 
 const modalityIdeas = computed<AssistantModalityIdea[]>(() =>
@@ -97,26 +97,26 @@ const modalityIdeas = computed<AssistantModalityIdea[]>(() =>
     : [
         {
           title: "餐盘照片",
-          detail: "上传餐盘图片，帮助判断热量和结构。",
-          prompt: "我准备发一张餐盘照片，你希望我怎么拍？",
+          detail: "用餐盘图片辅助判断食物结构、份量和热量范围。",
+          prompt: "我准备记录一餐，你建议餐盘照片怎么拍更容易分析？",
           inputType: "meal_photo",
-          why: "适合快速分析进食结构。",
-          captureTips: ["从正上方拍摄", "带上饮料", "尽量在开吃前拍"]
+          why: "适合快速补充饮食记录，减少手动估算成本。",
+          captureTips: ["从正上方拍摄", "包含饮品和酱料", "尽量在开吃前拍"]
         },
         {
           title: "体态记录",
-          detail: "固定角度拍摄，便于观察变化。",
-          prompt: "如果我想用体态照追踪变化，你建议我怎么拍？",
+          detail: "固定角度记录体态，配合体重和围度观察长期变化。",
+          prompt: "如果我想用体态照追踪变化，你建议我固定哪些拍摄条件？",
           inputType: "body_photo",
-          why: "适合观察平台期变化。",
+          why: "适合观察平台期、围度变化和训练塑形效果。",
           captureTips: ["固定角度", "固定光线", "按周记录"]
         },
         {
           title: "睡眠截图",
-          detail: "补充睡眠数据，帮助判断恢复节奏。",
-          prompt: "我可以给你睡眠截图，你会重点看哪些数据？",
+          detail: "补充睡眠时长和醒来次数，帮助判断恢复节奏。",
+          prompt: "我可以给你睡眠截图，你会重点看哪些恢复指标？",
           inputType: "sleep_screenshot",
-          why: "适合解释疲劳和状态波动。",
+          why: "适合解释疲劳、食欲波动和训练表现变化。",
           captureTips: ["带总时长", "带清醒次数", "补充入睡时间"]
         }
       ]
@@ -171,7 +171,7 @@ function runProbe() {
           <span class="assistant-chat__model">{{ modelLabel }}</span>
           <span v-if="probeResultLabel" class="assistant-chat__probe-result">{{ probeResultLabel }}</span>
           <button type="button" class="tool-button tool-button--accent" :disabled="probeBusy" @click="runProbe">
-            {{ probeBusy ? "检测中..." : "验证 Gemini" }}
+            {{ probeBusy ? "检测中..." : "检测 Gemini" }}
           </button>
         </div>
       </header>
@@ -213,7 +213,7 @@ function runProbe() {
             <textarea
               v-model="question"
               :disabled="busy"
-              placeholder="告诉我你今天的饮食、训练或状态变化，我会结合健康管理目标给你建议。"
+              placeholder="告诉我今天的饮食、训练、睡眠或身体状态，我会结合你的健康目标给出可执行建议。"
             ></textarea>
           </label>
 

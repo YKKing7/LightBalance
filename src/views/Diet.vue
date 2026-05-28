@@ -89,7 +89,7 @@ const defaultMealPlans: MealPlan[] = [
     carbs: 52,
     fat: 9,
     fiber: 7,
-    reason: "早餐安排优质蛋白和慢消化碳水，能稳定上午饱腹感，也便于控制全天热量。"
+    reason: "早餐用优质蛋白搭配慢消化碳水，帮助稳定上午精力和饱腹感。"
   },
   {
     id: "lunch-chicken",
@@ -101,7 +101,7 @@ const defaultMealPlans: MealPlan[] = [
     carbs: 62,
     fat: 13,
     fiber: 8,
-    reason: "午餐适当提高碳水和蛋白质，有利于下午学习与训练前能量供应。"
+    reason: "午餐提高蛋白质和复合碳水比例，为下午学习、工作和训练预留能量。"
   },
   {
     id: "dinner-fish",
@@ -113,7 +113,7 @@ const defaultMealPlans: MealPlan[] = [
     carbs: 45,
     fat: 12,
     fiber: 6,
-    reason: "晚餐保持清淡但不极端节食，兼顾蛋白质修复和足量蔬菜。"
+    reason: "晚餐保持清淡但不极端节食，兼顾蛋白质修复、蔬菜摄入和睡前舒适度。"
   },
   {
     id: "snack-soy",
@@ -125,7 +125,7 @@ const defaultMealPlans: MealPlan[] = [
     carbs: 15,
     fat: 11,
     fiber: 3,
-    reason: "加餐用小份量补充蛋白和健康脂肪，减少晚餐前过度饥饿。"
+    reason: "加餐用小份量补充蛋白和健康脂肪，减少晚餐前过度饥饿和冲动进食。"
   }
 ];
 
@@ -270,7 +270,7 @@ const supplementTips = computed(() => {
 
   if (remaining.protein > 15) {
     tips.push({
-      title: "蛋白质仍需补足",
+      title: "蛋白质还需要补足",
       detail: `还差约 ${remaining.protein} g，可优先选择鸡蛋、鱼虾、豆腐、低脂奶等优质蛋白，避免只用高油食物补足。`,
       tone: "neutral"
     });
@@ -278,7 +278,7 @@ const supplementTips = computed(() => {
 
   if (remaining.carbs > 45) {
     tips.push({
-      title: "碳水不足会影响精力",
+      title: "碳水偏低可能影响精力",
       detail: `还差约 ${remaining.carbs} g 碳水，下一餐可加入杂粮饭、燕麦、玉米或土豆，帮助维持学习和运动表现。`,
       tone: "neutral"
     });
@@ -302,7 +302,7 @@ const supplementTips = computed(() => {
 
   if (remaining.water > 0) {
     tips.push({
-      title: "饮水需要分次完成",
+      title: "饮水建议分次完成",
       detail: `还差 ${remaining.water} ml，建议分成 2 到 4 次补水，不必一次性喝完。`,
       tone: remaining.water > 900 ? "warning" : "neutral"
     });
@@ -525,9 +525,9 @@ function formatTime(value: string) {
     <article class="hero panel">
       <div class="hero__content">
         <p class="eyebrow">Daily Nutrition</p>
-        <h3>今日饮食规划与营养缺口分析</h3>
+        <h3>今日营养记录与摄入平衡</h3>
         <p class="hero__copy">
-          以 1800 kcal 为默认目标，联动记录、饮水、推荐餐和营养建议，刷新后仍保留今日数据。
+          记录餐次、饮水和宏量营养，实时对照目标，帮你看清今天还缺什么、哪里需要收一收。
         </p>
       </div>
 
@@ -558,9 +558,9 @@ function formatTime(value: string) {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Meal Plan</p>
-            <h4>每日饮食规划</h4>
+            <h4>推荐餐次方案</h4>
           </div>
-          <span class="panel__hint">点击后自动进入今日摄入记录</span>
+          <span class="panel__hint">一键加入记录，便于快速搭建今日饮食结构</span>
         </div>
 
         <div class="plan-grid">
@@ -589,7 +589,7 @@ function formatTime(value: string) {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Water</p>
-            <h4>饮水打卡</h4>
+            <h4>饮水进度</h4>
           </div>
         </div>
         <div class="water-card">
@@ -619,7 +619,7 @@ function formatTime(value: string) {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Nutrition Gap</p>
-            <h4>营养缺口与完成度</h4>
+            <h4>目标差距与完成度</h4>
           </div>
         </div>
 
@@ -641,7 +641,7 @@ function formatTime(value: string) {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Suggestions</p>
-            <h4>动态补充建议</h4>
+            <h4>下一餐调整建议</h4>
           </div>
         </div>
         <div class="tip-list">
@@ -658,7 +658,7 @@ function formatTime(value: string) {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Custom Entry</p>
-            <h4>添加自定义饮食记录</h4>
+            <h4>手动添加摄入记录</h4>
           </div>
         </div>
 
@@ -698,7 +698,7 @@ function formatTime(value: string) {
             <input v-model.number="form.fiber" type="number" min="0" />
           </label>
           <p v-if="formError" class="form-error">{{ formError }}</p>
-          <button class="primary-button" type="submit">保存饮食记录</button>
+          <button class="primary-button" type="submit">保存到今日记录</button>
         </form>
       </article>
 
@@ -706,7 +706,7 @@ function formatTime(value: string) {
         <div class="panel__header">
           <div>
             <p class="eyebrow">Meal Log</p>
-            <h4>今日已摄入内容</h4>
+            <h4>今日摄入明细</h4>
           </div>
           <div class="filters">
             <button

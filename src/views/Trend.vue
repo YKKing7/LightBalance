@@ -49,56 +49,56 @@ const metricMeta: Record<
     unit: "kg",
     accent: "#2f6b55",
     formatter: (value) => `${value.toFixed(1)} kg`,
-    judge: (delta) => (delta <= 0 ? "持续回落" : "出现反弹")
+    judge: (delta) => (delta <= 0 ? "体重回落" : "体重上浮")
   },
   bodyFatRate: {
     label: "体脂",
     unit: "%",
     accent: "#bc7b3f",
     formatter: (value) => `${value.toFixed(1)}%`,
-    judge: (delta) => (delta <= 0 ? "脂率下行" : "脂率抬头")
+    judge: (delta) => (delta <= 0 ? "体脂下降" : "体脂抬升")
   },
   waistCm: {
     label: "腰围",
     unit: "cm",
     accent: "#7b5bd6",
     formatter: (value) => `${value.toFixed(1)} cm`,
-    judge: (delta) => (delta <= 0 ? "围度收紧" : "围度放大")
+    judge: (delta) => (delta <= 0 ? "围度收紧" : "围度增加")
   },
   sleepHours: {
     label: "睡眠",
     unit: "h",
     accent: "#3a7bd5",
     formatter: (value) => `${value.toFixed(1)} h`,
-    judge: (delta) => (delta >= 0 ? "恢复升温" : "恢复走低")
+    judge: (delta) => (delta >= 0 ? "睡眠改善" : "睡眠走低")
   },
   steps: {
     label: "步数",
     unit: "steps",
     accent: "#178a82",
     formatter: (value) => `${Math.round(value)} 步`,
-    judge: (delta) => (delta >= 0 ? "活动抬升" : "活动偏低")
+    judge: (delta) => (delta >= 0 ? "活动提升" : "活动减少")
   },
   trainingMinutes: {
     label: "训练",
     unit: "min",
     accent: "#c0392b",
     formatter: (value) => `${Math.round(value)} 分钟`,
-    judge: (delta) => (delta >= 0 ? "训练加量" : "训练减量")
+    judge: (delta) => (delta >= 0 ? "训练增加" : "训练减少")
   },
   calorieIntake: {
     label: "摄入",
     unit: "kcal",
     accent: "#e67e22",
     formatter: (value) => `${Math.round(value)} kcal`,
-    judge: (delta) => (delta <= 0 ? "摄入收紧" : "摄入走高")
+    judge: (delta) => (delta <= 0 ? "摄入收紧" : "摄入增加")
   },
   calorieBurned: {
     label: "运动消耗",
     unit: "kcal",
     accent: "#8e44ad",
     formatter: (value) => `${Math.round(value)} kcal`,
-    judge: (delta) => (delta >= 0 ? "消耗提升" : "消耗回落")
+    judge: (delta) => (delta >= 0 ? "消耗提升" : "消耗减少")
   }
 };
 
@@ -239,7 +239,7 @@ const progressLabel = computed(() => {
 
 const progressNarrative = computed(() => {
   if (props.summary.latestWeight <= props.summary.targetWeight) {
-    return '体重已经贴近目标，后续重点可以从"继续掉秤"转向"维持状态和塑形"。';
+    return '体重已经贴近目标，后续重点可以从"继续下降"转向"维持状态与优化体态"。';
   }
 
   if (props.summary.averageSleepHours < 7) {
@@ -265,8 +265,8 @@ const dietAvgBurned = computed(() => {
 
 const dietNarrative = computed(() => {
   const gap = props.summary.averageCalorieGap;
-  if (gap <= 0) return "日均热量缺口为负值，摄入低于消耗，整体饮食结构有利于减脂推进。";
-  if (gap <= 500) return "热量差控制在合理区间，说明摄入与消耗的节奏基本匹配，继续维持当前饮食策略。";
+  if (gap <= 0) return "摄入低于消耗，当前饮食结构有利于减脂推进。";
+  if (gap <= 500) return "热量差处于可控区间，摄入与消耗节奏基本匹配，可以继续维持当前策略。";
   if (gap <= 1500) return "热量差略有偏高，建议适当压缩晚间碳水和高油脂食物的摄入比例。";
   return "热量差明显偏大，摄入远超消耗，需要重点审视饮食结构，尤其是零食和高热量饮品。";
 });
@@ -280,7 +280,7 @@ const trainingNarrative = computed(() => {
   const avgMin = props.summary.averageTrainingMinutes;
   const days = trainingActiveDays.value;
   const total = props.summary.series.length;
-  if (avgMin >= 35 && days >= total * 0.5) return "训练强度和频次都处于较好水平，执行纪律值得肯定，适合继续维持或微调训练量。";
+  if (avgMin >= 35 && days >= total * 0.5) return "训练强度和频次都处于较好水平，适合继续维持或小幅微调训练量。";
   if (avgMin >= 20) return "训练量处于中等水平，仍有提升空间，可以尝试逐步增加单次训练时长或强度。";
   return "训练量偏低，建议每周至少安排 3-4 次中等强度训练，以提高基础代谢和消耗能力。";
 });
@@ -493,7 +493,7 @@ const svgYTicks = computed(() => {
     <article class="overview-bar">
       <div class="overview-bar__header">
         <p class="overview-bar__eyebrow">Trend Tracker</p>
-        <h3>趋势追踪</h3>
+        <h3>长期趋势分析</h3>
         <p class="overview-bar__narrative">{{ progressNarrative }}</p>
       </div>
 
@@ -527,7 +527,7 @@ const svgYTicks = computed(() => {
           <div class="digest-card__header">
             <span class="digest-card__icon">&#x1F35D;</span>
             <div>
-              <h5>饮食情况</h5>
+              <h5>饮食结构概览</h5>
             </div>
           </div>
           <p class="digest-card__narrative">{{ dietNarrative }}</p>
@@ -552,7 +552,7 @@ const svgYTicks = computed(() => {
           <div class="digest-card__header">
             <span class="digest-card__icon">&#x1F3CB;</span>
             <div>
-              <h5>训练情况</h5>
+              <h5>训练执行概览</h5>
             </div>
           </div>
           <p class="digest-card__narrative">{{ trainingNarrative }}</p>
@@ -581,7 +581,7 @@ const svgYTicks = computed(() => {
         <div class="chart-card__header">
           <div>
             <p class="chart-card__eyebrow">Trend Line</p>
-            <h4>指标趋势</h4>
+            <h4>核心指标趋势</h4>
           </div>
           <div class="metric-pills">
             <button
@@ -726,7 +726,7 @@ const svgYTicks = computed(() => {
       <aside class="detail-card">
         <div class="detail-card__header">
           <p class="detail-card__eyebrow">Day Snapshot</p>
-          <h4>单日详情</h4>
+          <h4>单日状态快照</h4>
         </div>
 
         <div v-if="selectedRecord" class="snapshot">
@@ -811,7 +811,7 @@ const svgYTicks = computed(() => {
       <article class="breakdown-card">
         <div class="breakdown-card__header">
           <p class="breakdown-card__eyebrow">Breakdown</p>
-          <h4>达标统计</h4>
+          <h4>阶段达标统计</h4>
         </div>
 
         <div class="breakdown-group">
@@ -889,7 +889,7 @@ const svgYTicks = computed(() => {
       <article class="insights-card">
         <div class="insights-card__header">
           <p class="insights-card__eyebrow">Insights</p>
-          <h4>趋势洞察</h4>
+          <h4>综合趋势洞察</h4>
         </div>
 
         <div class="insight-stack">
@@ -902,7 +902,7 @@ const svgYTicks = computed(() => {
         <!-- 饮食洞察 -->
         <div class="insight-section">
           <p class="insight-section__eyebrow">Diet Insights</p>
-          <h5>饮食洞察</h5>
+          <h5>饮食行为洞察</h5>
           <div class="insight-stack">
             <article v-for="item in dietInsights" :key="item.title" class="insight-item" :data-tone="item.tone">
               <strong>{{ item.title }}</strong>
@@ -914,7 +914,7 @@ const svgYTicks = computed(() => {
         <!-- 训练洞察 -->
         <div class="insight-section">
           <p class="insight-section__eyebrow">Training Insights</p>
-          <h5>训练洞察</h5>
+          <h5>训练与活动洞察</h5>
           <div class="insight-stack">
             <article v-for="item in trainingInsights" :key="item.title" class="insight-item" :data-tone="item.tone">
               <strong>{{ item.title }}</strong>
@@ -930,10 +930,10 @@ const svgYTicks = computed(() => {
       <div class="records-card__header">
         <div>
           <p class="records-card__eyebrow">Records</p>
-          <h4>每日记录</h4>
+          <h4>每日数据记录</h4>
         </div>
         <div class="records-card__actions">
-          <button type="button" class="records-card__export" :disabled="!hasFilteredRecords" @click="exportToExcel">导出 Excel</button>
+          <button type="button" class="records-card__export" :disabled="!hasFilteredRecords" @click="exportToExcel">导出趋势记录</button>
           <div class="status-pills">
           <button
             v-for="status in statuses"

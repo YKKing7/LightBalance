@@ -18,17 +18,17 @@ const form = reactive({
 const COPY = {
   login: {
     eyebrow: "Welcome Back",
-    title: "欢迎回来",
-    description: "继续进入你的健康工作台。",
-    submit: "登录并进入",
+    title: "继续管理你的健康节奏",
+    description: "登录后查看今日任务、饮食记录、训练计划和长期趋势。",
+    submit: "进入健康工作台",
     switchText: "还没有账号？",
     switchAction: "去注册"
   },
   register: {
     eyebrow: "Create Account",
-    title: "创建账号",
-    description: "建立你的专属健康档案。",
-    submit: "注册并进入",
+    title: "创建专属健康档案",
+    description: "从身体数据、目标设置和生活方式开始，建立可持续的管理基础。",
+    submit: "创建档案并进入",
     switchText: "已经有账号了？",
     switchAction: "去登录"
   }
@@ -79,10 +79,10 @@ async function handleSubmit() {
           </div>
 
           <h1>轻享健康</h1>
-          <p class="auth-hero__lead">把身体画像、饮食记录、训练安排与趋势追踪，安静地收进同一处。</p>
+          <p class="auth-hero__lead">把身体档案、饮食摄入、训练执行与趋势分析收进同一处，让每天的选择更清楚。</p>
 
           <div class="auth-hero__line"></div>
-          <p class="auth-hero__note">科学减重健康平台</p>
+          <p class="auth-hero__note">个人健康管理平台</p>
         </div>
       </aside>
 
@@ -120,7 +120,7 @@ async function handleSubmit() {
                 v-model.trim="form.username"
                 type="text"
                 autocomplete="username"
-                placeholder="请输入账号"
+                placeholder="请输入用户名或账号"
               />
             </label>
 
@@ -141,7 +141,7 @@ async function handleSubmit() {
                   v-model.trim="form.nickname"
                   type="text"
                   autocomplete="nickname"
-                  placeholder="请输入昵称"
+                  placeholder="例如：小林"
                 />
               </label>
             </div>
@@ -152,7 +152,7 @@ async function handleSubmit() {
                 v-model="form.password"
                 type="password"
                 :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
-                placeholder="请输入密码"
+                placeholder="请输入登录密码"
               />
             </label>
 

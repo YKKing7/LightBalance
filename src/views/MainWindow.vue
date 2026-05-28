@@ -70,7 +70,7 @@ const bottomBarMessage = computed(() => {
     return `正在同步 ${loadedModulesCount.value}/${totalModules} 个模块`;
   }
 
-  return currentModuleMeta.value?.description ?? "让每一次记录都更接近稳定、轻盈的日常。";
+  return currentModuleMeta.value?.description ?? "把健康记录整理成清晰、可执行的每日行动。";
 });
 const todayLabel = computed(() =>
   formatDateTime(new Date(), {
@@ -226,7 +226,7 @@ async function handleCloseWindow() {
       <div class="brand">
         <p class="brand__eyebrow">LightBalance</p>
         <h1>轻享健康</h1>
-        <p class="brand__copy">科学减重健康平台</p>
+        <p class="brand__copy">个人健康管理与趋势分析平台</p>
       </div>
 
       <nav class="nav no-drag">
@@ -298,10 +298,10 @@ async function handleCloseWindow() {
       >
         <header class="shell__header">
           <div>
-            <h2 v-if="panelView === 'profile'">个人信息与身体档案</h2>
-            <h2 v-else-if="panelView === 'settings'">桌面偏好与账户设置</h2>
+              <h2 v-if="panelView === 'profile'">个人资料与身体档案</h2>
+            <h2 v-else-if="panelView === 'settings'">账户安全与偏好设置</h2>
             <template v-else>
-              <h2>{{ nickname }}，从今天的状态出发，走向更轻盈、更稳定的自己！</h2>
+              <h2>{{ nickname }}，从今天的状态出发，稳步管理饮食、训练与恢复。</h2>
             </template>
           </div>
 
@@ -356,7 +356,7 @@ async function handleCloseWindow() {
           <section v-else class="module-loading">
             <article class="module-loading__hero">
               <p class="module-loading__eyebrow">{{ currentModuleMeta?.label ?? "模块加载中" }}</p>
-              <h3>{{ currentModuleLoading ? "模块内容正在同步" : "模块内容暂不可用" }}</h3>
+              <h3>{{ currentModuleLoading ? "正在同步模块数据" : "当前模块暂不可用" }}</h3>
               <p>
                 {{ currentModuleLoading
                   ? "主框架和导航已经可以使用，当前模块的数据会在准备完成后自动显示。"

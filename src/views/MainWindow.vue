@@ -226,7 +226,7 @@ async function handleCloseWindow() {
       <div class="brand">
         <p class="brand__eyebrow">LightBalance</p>
         <h1>轻享健康</h1>
-        <p class="brand__copy">个人健康管理与趋势分析平台</p>
+        <p class="brand__copy">个人健康管理平台</p>
       </div>
 
       <nav class="nav no-drag">

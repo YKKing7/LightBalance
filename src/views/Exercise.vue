@@ -172,6 +172,7 @@ const form = reactive<WorkoutForm>({
 loadExerciseState();
 
 const completedWorkouts = computed(() => workouts.value.filter((item) => item.completed));
+const recentCompletedWorkouts = computed(() => completedWorkouts.value.slice(0, 2));
 const incompleteWorkouts = computed(() => workouts.value.filter((item) => !item.completed));
 const currentWorkout = computed(() => workouts.value.find((item) => item.id === currentWorkoutId.value) ?? null);
 
@@ -579,13 +580,6 @@ onUnmounted(() => {
 
         <div class="target-bars">
           <article>
-            <span>次数目标</span>
-            <strong>{{ weeklySummary.completedSessions }} / {{ weeklyGoal.targetSessions }}</strong>
-            <div class="progress progress--thin">
-              <span class="progress__fill" :style="{ width: `${weeklySummary.sessionRate}%` }"></span>
-            </div>
-          </article>
-          <article>
             <span>分钟目标</span>
             <strong>{{ weeklySummary.totalMinutes }} / {{ weeklyGoal.targetMinutes }}</strong>
             <div class="progress progress--thin">
@@ -649,11 +643,11 @@ onUnmounted(() => {
             <p class="eyebrow">Done</p>
             <h4>训练完成日志</h4>
           </div>
-          <span class="panel__hint">{{ completedWorkouts.length }} 条记录</span>
+          <span class="panel__hint">最近 {{ recentCompletedWorkouts.length }} 条 / 共 {{ completedWorkouts.length }} 条</span>
         </div>
 
         <div class="workout-list">
-          <article v-for="workout in completedWorkouts" :key="workout.id" class="workout-card workout-card--done">
+          <article v-for="workout in recentCompletedWorkouts" :key="workout.id" class="workout-card workout-card--done">
             <div class="workout-card__main">
               <span>{{ formatCompletedAt(workout.completedAt) }}</span>
               <strong>{{ workout.title }}</strong>
@@ -968,9 +962,9 @@ onUnmounted(() => {
 
 .workout-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 14px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
   padding: 16px;
 }
 
@@ -981,14 +975,24 @@ onUnmounted(() => {
 .workout-card__main {
   display: grid;
   gap: 6px;
+  min-width: 0;
+}
+
+.workout-card__main strong,
+.workout-card__main p {
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .workout-card__main p {
   margin: 0;
+  max-width: 56ch;
+  line-height: 1.6;
 }
 
 .workout-card__meta {
-  align-items: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   flex-wrap: wrap;
 }
 
@@ -999,6 +1003,30 @@ onUnmounted(() => {
   color: #365745;
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.workout-card > .primary-button,
+.workout-card > .ghost-button {
+  justify-self: start;
+  white-space: nowrap;
+}
+
+@media (min-width: 1500px) {
+  .workout-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .workout-card__meta {
+    grid-column: 1 / 2;
+  }
+
+  .workout-card > .primary-button,
+  .workout-card > .ghost-button {
+    grid-column: 2 / 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
 }
 
 .entry-form {

@@ -121,6 +121,8 @@ const overviewMetricCards = computed(() =>
 
 const statuses = computed(() => ["全部", ...new Set(props.summary.records.map((item) => item.status))]);
 const hasFilteredRecords = computed(() => filteredRecords.value.length > 0);
+const RECORDS_PER_PAGE = 5;
+const currentRecordPage = ref(1);
 
 const filteredRecords = computed(() => {
   if (activeStatus.value === "全部") {
@@ -129,6 +131,38 @@ const filteredRecords = computed(() => {
 
   return props.summary.records.filter((item) => item.status === activeStatus.value);
 });
+
+const totalRecordPages = computed(() => Math.max(1, Math.ceil(filteredRecords.value.length / RECORDS_PER_PAGE)));
+
+const paginatedRecords = computed(() => {
+  const start = (currentRecordPage.value - 1) * RECORDS_PER_PAGE;
+  return filteredRecords.value.slice(start, start + RECORDS_PER_PAGE);
+});
+
+const recordPageNumbers = computed(() => Array.from({ length: totalRecordPages.value }, (_, index) => index + 1));
+
+const recordPageRangeLabel = computed(() => {
+  if (!hasFilteredRecords.value) {
+    return "0 / 0";
+  }
+
+  const start = (currentRecordPage.value - 1) * RECORDS_PER_PAGE + 1;
+  const end = Math.min(currentRecordPage.value * RECORDS_PER_PAGE, filteredRecords.value.length);
+  return `${start}-${end} / ${filteredRecords.value.length}`;
+});
+
+watch(
+  () => filteredRecords.value.length,
+  () => {
+    if (currentRecordPage.value > totalRecordPages.value) {
+      currentRecordPage.value = totalRecordPages.value;
+    }
+
+    if (currentRecordPage.value < 1) {
+      currentRecordPage.value = 1;
+    }
+  }
+);
 
 const selectedSeriesPoint = computed(() => {
   const fallbackDate = selectedDate.value ?? latestAvailableDate.value;
@@ -426,6 +460,12 @@ function formatDate(value: string) {
   return formatDateOnly(value);
 }
 
+function formatStatusLabel(value: string) {
+  if (value === "恢复优") return "恢复良好";
+  if (value === "需校准") return "待调整";
+  return value;
+}
+
 function exportToExcel() {
   if (!filteredRecords.value.length) {
     return;
@@ -440,7 +480,7 @@ function exportToExcel() {
     "步数": item.steps,
     "训练(分钟)": item.trainingMinutes,
     "热量差(kcal)": item.calorieGap,
-    "状态": item.status
+    "状态": formatStatusLabel(item.status)
   }));
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
@@ -460,6 +500,15 @@ function describeDeviation(value: number) {
 
 function selectPoint(point: TrendSeriesPoint | TrendRecordRow) {
   selectedDate.value = point.date;
+}
+
+function selectStatus(status: string) {
+  activeStatus.value = status;
+  currentRecordPage.value = 1;
+}
+
+function setRecordPage(page: number) {
+  currentRecordPage.value = Math.min(Math.max(page, 1), totalRecordPages.value);
 }
 
 function onSvgDotHover(index: number | null) {
@@ -744,7 +793,7 @@ const svgYTicks = computed(() => {
           </div>
 
           <div class="snapshot__meta">
-            <span class="snapshot__status">{{ selectedRecord.status }}</span>
+            <span class="snapshot__status">{{ formatStatusLabel(selectedRecord.status) }}</span>
             <p>
               热量差 {{ selectedRecord.calorieGap }} kcal（摄入 − 运动消耗 − 基础代谢），训练 {{ selectedRecord.trainingMinutes }} 分钟，步数
               {{ selectedRecord.steps }}，睡眠 {{ selectedRecord.sleepHours }} 小时。
@@ -941,9 +990,9 @@ const svgYTicks = computed(() => {
             type="button"
             class="status-pill"
             :class="{ 'status-pill--active': status === activeStatus }"
-            @click="activeStatus = status"
+            @click="selectStatus(status)"
           >
-            {{ status }}
+            {{ formatStatusLabel(status) }}
           </button>
         </div>
         </div>
@@ -951,7 +1000,7 @@ const svgYTicks = computed(() => {
 
       <div class="record-list">
         <button
-          v-for="item in filteredRecords"
+          v-for="item in paginatedRecords"
           :key="item.date"
           type="button"
           class="record-row"
@@ -960,7 +1009,7 @@ const svgYTicks = computed(() => {
         >
           <div class="record-row__date">
             <span>{{ formatDate(item.date) }}</span>
-            <strong>{{ item.status }}</strong>
+            <strong>{{ formatStatusLabel(item.status) }}</strong>
           </div>
           <div class="record-row__metrics">
             <span>体重 {{ item.weightKg }} kg</span>
@@ -974,6 +1023,38 @@ const svgYTicks = computed(() => {
         </button>
         <div v-if="!hasFilteredRecords" class="record-empty">
           当前筛选条件下暂无记录
+        </div>
+      </div>
+
+      <div v-if="hasFilteredRecords" class="record-pagination">
+        <span class="record-pagination__range">每页 5 条 · {{ recordPageRangeLabel }}</span>
+        <div class="record-pagination__controls">
+          <button
+            type="button"
+            class="record-page-button"
+            :disabled="currentRecordPage === 1"
+            @click="setRecordPage(currentRecordPage - 1)"
+          >
+            上一页
+          </button>
+          <button
+            v-for="page in recordPageNumbers"
+            :key="page"
+            type="button"
+            class="record-page-number"
+            :class="{ 'record-page-number--active': page === currentRecordPage }"
+            @click="setRecordPage(page)"
+          >
+            {{ page }}
+          </button>
+          <button
+            type="button"
+            class="record-page-button"
+            :disabled="currentRecordPage === totalRecordPages"
+            @click="setRecordPage(currentRecordPage + 1)"
+          >
+            下一页
+          </button>
         </div>
       </div>
     </article>
@@ -1779,10 +1860,10 @@ const svgYTicks = computed(() => {
 
 .record-row {
   width: 100%;
-  padding: 14px 16px;
+  padding: 12px 14px;
   display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 14px;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
   border-radius: 18px;
   background: linear-gradient(135deg, rgba(247, 250, 255, 0.9), rgba(255, 252, 247, 0.92));
   border: 1px solid rgba(57, 87, 63, 0.08);
@@ -1795,25 +1876,42 @@ const svgYTicks = computed(() => {
   font-size: 0.82rem;
 }
 
+.record-row__date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .record-row__date strong {
-  display: block;
-  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin-top: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(57, 87, 63, 0.08);
   color: var(--color-text);
-  font-size: 1rem;
+  font-size: 0.88rem;
+  white-space: nowrap;
 }
 
 .record-row__metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .record-row__metrics span {
-  padding: 8px 10px;
-  border-radius: 12px;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.72);
   color: var(--color-text-soft);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .record-row--active {
@@ -1826,6 +1924,65 @@ const svgYTicks = computed(() => {
   background: var(--color-surface-soft);
   color: var(--color-text-soft);
   text-align: center;
+}
+
+.record-pagination {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.record-pagination__range {
+  color: var(--color-text-soft);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.record-pagination__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.record-page-button,
+.record-page-number {
+  min-width: 36px;
+  height: 36px;
+  border: 1px solid rgba(57, 87, 63, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--color-text);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s;
+}
+
+.record-page-button {
+  padding: 0 12px;
+}
+
+.record-page-button:hover:not(:disabled),
+.record-page-number:hover {
+  background: rgba(57, 87, 63, 0.08);
+  border-color: rgba(57, 87, 63, 0.24);
+  transform: translateY(-1px);
+}
+
+.record-page-number--active {
+  background: linear-gradient(135deg, #22342a, #42604b);
+  border-color: transparent;
+  color: #fffaf0;
+}
+
+.record-page-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
 }
 
 /* ===== 响应式 ===== */
@@ -1872,12 +2029,21 @@ const svgYTicks = computed(() => {
 
   .chart-card__header,
   .breakdown-group header,
-  .records-card__header {
+  .records-card__header,
+  .record-pagination {
     flex-direction: column;
   }
 
   .metric-pills,
   .status-pills {
+    justify-content: flex-start;
+  }
+
+  .record-pagination {
+    align-items: stretch;
+  }
+
+  .record-pagination__controls {
     justify-content: flex-start;
   }
 }

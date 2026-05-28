@@ -663,9 +663,6 @@ function fieldErrorFor(key: string) {
               <p class="eyebrow">Profile Matrix</p>
               <h4>个人数据矩阵</h4>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center">
-              <span class="panel__badge">展示建议生成所依赖的关键字段</span>
-            </div>
           </div>
 
           <div class="table-shell">
@@ -845,13 +842,6 @@ function fieldErrorFor(key: string) {
                 </select>
               </label>
 
-              <label class="field field--readonly">
-                <span>目标提示</span>
-                <div class="field-card">
-                  <strong>{{ profile.goalSummary }}</strong>
-                  <small>目标越具体，饮食和训练建议越准确</small>
-                </div>
-              </label>
             </div>
           </section>
 
@@ -954,13 +944,14 @@ function fieldErrorFor(key: string) {
 <style scoped>
 .assessment {
   display: grid;
-  gap: 18px;
+  gap: 16px;
+  padding-right: 18px;
 }
 
 .hero,
 .panel,
 .goal-card {
-  padding: 22px;
+  padding: 20px;
   border-radius: var(--radius-panel);
   background: var(--color-surface);
   border: 1px solid var(--color-line);
@@ -984,10 +975,12 @@ function fieldErrorFor(key: string) {
 .hero__content {
   position: relative;
   display: grid;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 18px;
 }
 
 .hero__heading {
+  grid-column: 1 / -1;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -996,17 +989,17 @@ function fieldErrorFor(key: string) {
 
 .hero__lead {
   max-width: 760px;
-  margin: 14px 0 0;
-  font-size: 1.08rem;
-  line-height: 1.85;
+  margin: 10px 0 0;
+  font-size: 1rem;
+  line-height: 1.72;
   color: #66756d;
 }
 
 .hero__identity {
   display: grid;
   gap: 6px;
-  min-width: 220px;
-  padding: 18px;
+  min-width: 210px;
+  padding: 14px 16px;
   border-radius: var(--radius-card);
   background: var(--color-surface-soft);
   border: 1px solid var(--color-line);
@@ -1040,7 +1033,7 @@ function fieldErrorFor(key: string) {
 .hero-stat {
   display: grid;
   gap: 8px;
-  padding: 20px;
+  padding: 18px;
   border-radius: var(--radius-card);
   border: 1px solid var(--color-line);
   backdrop-filter: blur(12px);
@@ -1087,8 +1080,8 @@ function fieldErrorFor(key: string) {
 .weight-bar-card__metrics div {
   display: grid;
   gap: 8px;
-  padding: 16px 18px;
-  border-radius: 18px;
+  padding: 14px 16px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -1189,8 +1182,9 @@ function fieldErrorFor(key: string) {
 
 .hero__stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: stretch;
+  gap: 12px;
 }
 
 .hero-stat {
@@ -1229,7 +1223,7 @@ function fieldErrorFor(key: string) {
 }
 
 .hero-stat strong {
-  font-size: 1.35rem;
+  font-size: 1.24rem;
   color: var(--color-text);
 }
 
@@ -1249,7 +1243,8 @@ function fieldErrorFor(key: string) {
 }
 
 .hero h3 {
-  font-size: 2rem;
+  font-size: 1.82rem;
+  line-height: 1.16;
 }
 
 .copy,
@@ -1273,44 +1268,48 @@ function fieldErrorFor(key: string) {
 
 .goal-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 14px;
 }
 
 .goal-card {
+  min-height: 130px;
+  padding: 18px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 250, 245, 0.95));
 }
 
 .goal-card strong {
   display: block;
-  margin-top: 10px;
+  margin-top: 8px;
   color: var(--color-text);
-  font-size: 1.8rem;
+  font-size: 1.55rem;
+  line-height: 1.16;
 }
 
 .goal-card small {
   display: block;
   margin-top: 8px;
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
 .content-grid {
   display: grid;
-  grid-template-columns: 0.95fr 1.25fr;
-  gap: 18px;
+  grid-template-columns: minmax(430px, 0.92fr) minmax(0, 1.08fr);
+  align-items: start;
+  gap: 16px;
 }
 
 .content-stack {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .metrics,
 .insights,
 .fields {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .metrics {
@@ -1319,8 +1318,8 @@ function fieldErrorFor(key: string) {
 
 .metrics div,
 .insight {
-  padding: 18px;
-  border-radius: 20px;
+  padding: 15px;
+  border-radius: 16px;
   background: linear-gradient(180deg, rgba(236, 242, 234, 0.75), rgba(247, 250, 246, 0.88));
   border: 1px solid rgba(71, 99, 76, 0.08);
 }
@@ -1334,8 +1333,9 @@ function fieldErrorFor(key: string) {
 
 .metrics strong,
 .insight strong {
-  margin-top: 10px;
+  margin-top: 8px;
   color: var(--color-text);
+  line-height: 1.25;
 }
 
 .insights {
@@ -1353,7 +1353,11 @@ function fieldErrorFor(key: string) {
 .panel--table,
 .panel--form {
   display: grid;
-  gap: 16px;
+  gap: 12px;
+}
+
+.panel--form {
+  padding: 18px;
 }
 
 .panel__header {
@@ -1368,8 +1372,8 @@ function fieldErrorFor(key: string) {
 }
 
 .panel__intro {
-  margin: 8px 0 0;
-  line-height: 1.7;
+  margin: 6px 0 0;
+  line-height: 1.52;
 }
 
 .panel__actions {
@@ -1444,7 +1448,7 @@ function fieldErrorFor(key: string) {
 
 .table-shell {
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: 18px;
   border: 1px solid rgba(60, 88, 67, 0.1);
   background: rgba(255, 255, 255, 0.72);
 }
@@ -1452,15 +1456,38 @@ function fieldErrorFor(key: string) {
 .archive-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.9rem;
+}
+
+.archive-table th:nth-child(1),
+.archive-table td:nth-child(1) {
+  width: 18%;
+}
+
+.archive-table th:nth-child(2),
+.archive-table td:nth-child(2) {
+  width: 22%;
+}
+
+.archive-table th:nth-child(3),
+.archive-table td:nth-child(3) {
+  width: 24%;
+}
+
+.archive-table th:nth-child(4),
+.archive-table td:nth-child(4) {
+  width: 36%;
 }
 
 .archive-table thead th {
-  padding: 14px 16px;
+  padding: 13px 14px;
   text-align: left;
   font-size: 0.82rem;
   letter-spacing: 0.04em;
   color: #58705e;
   background: rgba(232, 239, 231, 0.86);
+  white-space: nowrap;
 }
 
 .archive-table tbody tr {
@@ -1472,50 +1499,75 @@ function fieldErrorFor(key: string) {
 }
 
 .archive-table tbody td {
-  padding: 16px;
+  padding: 12px 14px;
   border-top: 1px solid rgba(85, 105, 89, 0.08);
-  vertical-align: top;
+  vertical-align: middle;
   color: var(--color-text);
+  line-height: 1.48;
+}
+
+.archive-table tbody td:nth-child(2) {
+  color: #425a4b;
+  font-weight: 700;
 }
 
 .table-value {
   font-weight: 700;
+  font-size: 0.98rem;
+  line-height: 1.35;
 }
 
 .table-note {
   color: var(--color-text-soft);
-  line-height: 1.6;
+  line-height: 1.5;
+}
+
+.table-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 70px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(236, 243, 237, 0.92), rgba(247, 250, 246, 0.96));
+  border: 1px solid rgba(57, 87, 63, 0.08);
+  color: #244331;
+  font-size: 0.86rem;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .form-section {
   display: grid;
-  gap: 14px;
-  padding: 18px;
-  border-radius: 24px;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
   background: linear-gradient(180deg, rgba(249, 251, 248, 0.88), rgba(255, 255, 255, 0.96));
   border: 1px solid rgba(78, 101, 84, 0.08);
 }
 
 .form-section__head {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .form-section__head h5 {
-  font-size: 1rem;
+  font-size: 0.96rem;
 }
 
 .form-section__head p {
   margin: 0;
-  line-height: 1.6;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .fields--four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .fields--three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .fields--two {
@@ -1524,7 +1576,7 @@ function fieldErrorFor(key: string) {
 
 .field {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .field span {
@@ -1536,14 +1588,22 @@ function fieldErrorFor(key: string) {
 .field select,
 .field textarea {
   width: 100%;
-  padding: 14px 16px;
-  border-radius: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
   border: 1px solid rgba(61, 84, 67, 0.14);
   background: rgba(255, 255, 255, 0.98);
   color: var(--color-text);
   outline: none;
   resize: none;
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.field textarea {
+  min-height: 76px;
+}
+
+.field:has(textarea) {
+  grid-column: 1 / -1;
 }
 
 .field input:focus,
@@ -1571,10 +1631,10 @@ function fieldErrorFor(key: string) {
 
 .field-card {
   display: grid;
-  gap: 6px;
-  min-height: 54px;
-  padding: 14px 16px;
-  border-radius: 16px;
+  gap: 4px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-radius: 12px;
   background: linear-gradient(180deg, rgba(232, 239, 231, 0.74), rgba(245, 248, 244, 0.96));
   border: 1px solid rgba(61, 84, 67, 0.1);
 }
@@ -1601,12 +1661,12 @@ function fieldErrorFor(key: string) {
 .mini-trends {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .mini-trend-card {
-  border-radius: 18px;
-  padding: 14px;
+  border-radius: 16px;
+  padding: 12px;
   border: 1px solid rgba(62, 90, 70, 0.1);
   background: linear-gradient(180deg, rgba(239, 245, 238, 0.76), rgba(250, 252, 249, 0.96));
   display: grid;
@@ -1636,7 +1696,7 @@ function fieldErrorFor(key: string) {
 
 .mini-trend-card__chart {
   width: 100%;
-  height: 84px;
+  height: 76px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.75);
   border: 1px solid rgba(70, 98, 77, 0.1);
@@ -1725,6 +1785,10 @@ function fieldErrorFor(key: string) {
 }
 
 @media (max-width: 1280px) {
+  .hero__content {
+    grid-template-columns: 1fr;
+  }
+
   .content-grid {
     grid-template-columns: 1fr;
   }
@@ -1769,14 +1833,6 @@ function fieldErrorFor(key: string) {
     transform: none;
   }
 
-  .archive-table {
-    min-width: 720px;
-  }
-
-  .table-shell {
-    overflow-x: auto;
-  }
-
   .hero h3 {
     font-size: 1.55rem;
   }
@@ -1803,6 +1859,10 @@ function fieldErrorFor(key: string) {
     border-radius: 20px;
   }
 
+  .assessment {
+    padding-right: 0;
+  }
+
   .goal-card strong {
     font-size: 1.4rem;
   }
@@ -1827,6 +1887,24 @@ function fieldErrorFor(key: string) {
 
   .form-section {
     padding: 14px;
+  }
+
+  .fields--four,
+  .fields--three,
+  .fields--two {
+    grid-template-columns: 1fr;
+  }
+
+  .archive-table {
+    min-width: 640px;
+  }
+
+  .table-shell {
+    overflow-x: auto;
+  }
+
+  .table-tag {
+    min-width: max-content;
   }
 
   .field input,

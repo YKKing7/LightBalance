@@ -547,6 +547,24 @@ async function handleCloseWindow() {
   height: 100vh;
   padding: 0;
   overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(222, 192, 142, 0.32), transparent 29%),
+    radial-gradient(circle at 84% 16%, rgba(128, 178, 148, 0.28), transparent 32%),
+    radial-gradient(circle at 58% 92%, rgba(98, 139, 164, 0.16), transparent 34%),
+    linear-gradient(180deg, #f7f1e7 0%, #edf5ec 50%, #f5f2eb 100%);
+}
+
+.shell__main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.42) 0 1px, transparent 1px 12px),
+    linear-gradient(45deg, rgba(44, 80, 59, 0.025) 0 1px, transparent 1px 16px);
+  pointer-events: none;
 }
 
 .shell__body {
@@ -558,6 +576,9 @@ async function handleCloseWindow() {
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: rgba(83, 108, 91, 0.32) transparent;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.12) 42%, rgba(255, 255, 255, 0)),
+    radial-gradient(circle at 96% 10%, rgba(255, 246, 226, 0.52), transparent 28%);
 }
 
 .shell__body::-webkit-scrollbar {
@@ -586,9 +607,12 @@ async function handleCloseWindow() {
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px 8px 20px;
-  background: rgba(250, 247, 240, 0.94);
+  background:
+    linear-gradient(90deg, rgba(255, 251, 242, 0.94), rgba(243, 249, 242, 0.9)),
+    radial-gradient(circle at 74% 0%, rgba(202, 224, 205, 0.32), transparent 30%);
   color: var(--color-text);
   border-bottom: 1px solid var(--color-line);
+  backdrop-filter: blur(16px);
   -webkit-app-region: drag;
   app-region: drag;
 }
@@ -806,10 +830,13 @@ async function handleCloseWindow() {
   min-width: 0;
   margin-right: 14px;
   padding: 10px 14px;
-  background: var(--color-surface);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 251, 247, 0.68)),
+    var(--color-surface);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-raised);
+  backdrop-filter: blur(12px);
 }
 
 .status-card__message {
@@ -867,9 +894,12 @@ async function handleCloseWindow() {
 .module-loading__card {
   padding: 22px;
   border-radius: var(--radius-panel);
-  background: var(--color-surface);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(249, 251, 247, 0.68)),
+    var(--color-surface);
   border: 1px solid var(--color-line);
   box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(10px);
 }
 
 .module-loading__hero {

@@ -334,12 +334,10 @@ const supplementTips = computed(() => {
 });
 
 const gapRows = computed(() => [
-  buildGapRow("热量", consumedNutrition.value.calories, nutritionTarget.calories, remainingNutrition.value.calories, "kcal"),
   buildGapRow("蛋白质", consumedNutrition.value.protein, nutritionTarget.protein, remainingNutrition.value.protein, "g"),
   buildGapRow("碳水", consumedNutrition.value.carbs, nutritionTarget.carbs, remainingNutrition.value.carbs, "g"),
   buildGapRow("脂肪", consumedNutrition.value.fat, nutritionTarget.fat, remainingNutrition.value.fat, "g"),
-  buildGapRow("膳食纤维", consumedNutrition.value.fiber, nutritionTarget.fiber, remainingNutrition.value.fiber, "g"),
-  buildGapRow("饮水", waterIntake.value, nutritionTarget.water, remainingNutrition.value.water, "ml")
+  buildGapRow("膳食纤维", consumedNutrition.value.fiber, nutritionTarget.fiber, remainingNutrition.value.fiber, "g")
 ]);
 
 watch(
@@ -899,7 +897,7 @@ table tbody td {
 
 .layout-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(340px, 0.8fr);
+  grid-template-columns: minmax(360px, 1.3fr) minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -910,7 +908,7 @@ table tbody td {
 
 .plan-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
 }
 
@@ -929,8 +927,9 @@ table tbody td {
 }
 
 .plan-card__head {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .plan-card__head span {
@@ -1016,6 +1015,10 @@ table tbody td {
 .water-card strong {
   color: var(--color-text);
   font-size: 1.35rem;
+}
+
+.water-card .button-row {
+  margin-top: 12px;
 }
 
 .meal-stats {

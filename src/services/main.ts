@@ -6,8 +6,11 @@ const globalStyle = `
   font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "WenQuanYi Micro Hei", sans-serif;
   color: #223127;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.48) 0 1px, transparent 1px 10px),
-    linear-gradient(180deg, #f6f2e9 0%, #edf3ed 52%, #f4f6f1 100%);
+    radial-gradient(circle at 14% 12%, rgba(228, 203, 158, 0.34), transparent 28%),
+    radial-gradient(circle at 88% 18%, rgba(141, 185, 160, 0.28), transparent 30%),
+    radial-gradient(circle at 68% 92%, rgba(112, 153, 181, 0.18), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0 1px, transparent 1px 10px),
+    linear-gradient(180deg, #f7f1e6 0%, #eef5ec 48%, #f4f1e8 100%);
   color-scheme: light;
   --color-text: #223127;
   --color-text-strong: #15231b;
@@ -45,7 +48,11 @@ body,
 body {
   min-height: 100vh;
   color: var(--color-text);
-  background: transparent;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(230, 201, 151, 0.26), transparent 30%),
+    radial-gradient(circle at 92% 4%, rgba(125, 174, 146, 0.22), transparent 32%),
+    radial-gradient(circle at 70% 100%, rgba(107, 146, 172, 0.16), transparent 34%),
+    linear-gradient(180deg, #f7f1e7 0%, #eef5ec 54%, #f5f2eb 100%);
   text-rendering: geometricPrecision;
 }
 

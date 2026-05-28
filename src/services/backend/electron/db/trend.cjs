@@ -324,9 +324,9 @@ function buildRecords(rows, targetWeight, bmr) {
             const calorieGap = Number(row.calorie_intake) - (Number(row.calorie_burned) + bmr);
             const weightGap = Number(row.weight_kg) - targetWeight;
             const status = Number(row.sleep_hours) >= 7.2 && Number(row.steps) >= 8500
-                ? "恢复优"
+                ? "恢复良好"
                 : calorieGap > 1900 || weightGap > 2.5
-                    ? "需校准"
+                    ? "待调整"
                     : Number(row.training_minutes) >= 25
                         ? "训练日"
                         : "平衡日";

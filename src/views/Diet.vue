@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, onUnmounted, reactive, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
+import { useToast } from "../services/composables/useToast";
 import type { DietSummary } from "../services/types";
+import { formatDateTime, normalizeNumber, safePercent } from "../services/utils/format";
+import { readJson, writeJson } from "../services/utils/storage";
 
 type MealType = "早餐" | "午餐" | "晚餐" | "加餐";
 type MealFilter = "全部" | MealType;
@@ -147,8 +150,12 @@ const waterIntake = ref(0);
 const selectedMealFilter = ref<MealFilter>("全部");
 const lastAddedPlanId = ref("");
 const formError = ref("");
-const toast = ref("");
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
+const { toast, toastVisible, showToast } = useToast("", {
+  duration: 1800,
+  onHide: () => {
+    lastAddedPlanId.value = "";
+  }
+});
 
 const form = reactive<NewFoodForm>({
   mealType: "早餐",
@@ -358,29 +365,14 @@ function loadDietState() {
 }
 
 function saveDietState() {
-  localStorage.setItem(STORAGE_KEYS.records, JSON.stringify(foodRecords.value));
-  localStorage.setItem(STORAGE_KEYS.water, JSON.stringify(waterIntake.value));
-  localStorage.setItem(STORAGE_KEYS.target, JSON.stringify({ ...nutritionTarget }));
-  localStorage.setItem(STORAGE_KEYS.filter, JSON.stringify(selectedMealFilter.value));
-}
-
-function readJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch (err) {
-    console.warn(`Failed to parse ${key}`, err);
-    return fallback;
-  }
+  writeJson(STORAGE_KEYS.records, foodRecords.value);
+  writeJson(STORAGE_KEYS.water, waterIntake.value);
+  writeJson(STORAGE_KEYS.target, { ...nutritionTarget });
+  writeJson(STORAGE_KEYS.filter, selectedMealFilter.value);
 }
 
 function normalizeMealType(value: string): MealType {
   return mealTypes.includes(value as MealType) ? (value as MealType) : "加餐";
-}
-
-function normalizeNumber(value: unknown, fallback = 0) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? Math.max(numberValue, 0) : fallback;
 }
 
 function sanitizeTarget(target: NutritionTarget): NutritionTarget {
@@ -410,14 +402,6 @@ function sanitizeRecord(record: Partial<FoodRecord>): FoodRecord | null {
     fiber: normalizeNumber(record.fiber),
     recordedAt: String(record.recordedAt ?? new Date().toISOString())
   };
-}
-
-function safePercent(value: number, target: number) {
-  if (!Number.isFinite(value) || !Number.isFinite(target) || target <= 0) {
-    return 0;
-  }
-
-  return Math.min(Math.max((Math.max(value, 0) / target) * 100, 0), 100);
 }
 
 function progressWidth(value: number, target: number) {
@@ -528,28 +512,12 @@ function resetWater() {
 }
 
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat("zh-CN", {
+  return formatDateTime(value, {
     hour: "2-digit",
     minute: "2-digit"
-  }).format(new Date(value));
+  });
 }
 
-function showToast(message: string) {
-  toast.value = message;
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-  }
-  toastTimer = setTimeout(() => {
-    toast.value = "";
-    lastAddedPlanId.value = "";
-  }, 1800);
-}
-
-onUnmounted(() => {
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-  }
-});
 </script>
 
 <template>
@@ -795,7 +763,7 @@ onUnmounted(() => {
     </section>
 
     <transition name="toast-fade">
-      <div v-if="toast" class="toast">{{ toast }}</div>
+      <div v-if="toastVisible" class="toast">{{ toast }}</div>
     </transition>
   </section>
 </template>

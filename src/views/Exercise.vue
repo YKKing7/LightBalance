@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref, watch } from "vue";
+import { useToast } from "../services/composables/useToast";
 import type { ExerciseSummary } from "../services/types";
+import { formatDateTime, normalizeNumber, safePercent, todayDateString } from "../services/utils/format";
+import { readJson, writeJson } from "../services/utils/storage";
 
 type Intensity = "低强度" | "中等" | "中高强度" | "高强度";
 type WorkoutType = "有氧" | "力量" | "瑜伽" | "HIIT" | "骑行" | "综合";
@@ -153,9 +156,8 @@ const currentWorkoutId = ref<number | null>(null);
 const timerSeconds = ref(0);
 const timerRunning = ref(false);
 const formError = ref("");
-const toast = ref("");
 let timerId: ReturnType<typeof setInterval> | null = null;
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
+const { toast, toastVisible, showToast, hideToast } = useToast("");
 
 const form = reactive<WorkoutForm>({
   title: "",
@@ -292,25 +294,12 @@ function loadExerciseState() {
 }
 
 function saveExerciseState() {
-  localStorage.setItem(STORAGE_KEYS.workouts, JSON.stringify(workouts.value));
-  localStorage.setItem(
-    STORAGE_KEYS.timer,
-    JSON.stringify({
-      currentWorkoutId: currentWorkoutId.value,
-      timerSeconds: timerSeconds.value
-    })
-  );
-  localStorage.setItem(STORAGE_KEYS.goal, JSON.stringify({ ...weeklyGoal }));
-}
-
-function readJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch (err) {
-    console.warn(`Failed to parse ${key}`, err);
-    return fallback;
-  }
+  writeJson(STORAGE_KEYS.workouts, workouts.value);
+  writeJson(STORAGE_KEYS.timer, {
+    currentWorkoutId: currentWorkoutId.value,
+    timerSeconds: timerSeconds.value
+  });
+  writeJson(STORAGE_KEYS.goal, { ...weeklyGoal });
 }
 
 function sanitizeWeeklyGoal(goal: WeeklyGoal): WeeklyGoal {
@@ -351,24 +340,8 @@ function normalizeIntensity(value: string): Intensity {
   return intensities.includes(value as Intensity) ? (value as Intensity) : "中等";
 }
 
-function normalizeNumber(value: unknown, fallback = 0) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? Math.max(numberValue, 0) : fallback;
-}
-
-function safePercent(value: number, target: number) {
-  if (!Number.isFinite(value) || !Number.isFinite(target) || target <= 0) {
-    return 0;
-  }
-
-  return Math.min(Math.max((Math.max(value, 0) / target) * 100, 0), 100);
-}
-
 function getTodayDateString() {
-  const now = new Date();
-  const month = `${now.getMonth() + 1}`.padStart(2, "0");
-  const day = `${now.getDate()}`.padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
+  return todayDateString();
 }
 
 function actualMinutes(workout: Workout) {
@@ -520,29 +493,17 @@ function formatDuration(seconds: number) {
 
 function formatCompletedAt(value: string | null) {
   if (!value) return "未记录";
-  return new Intl.DateTimeFormat("zh-CN", {
+  return formatDateTime(value, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit"
-  }).format(new Date(value));
-}
-
-function showToast(message: string) {
-  toast.value = message;
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-  }
-  toastTimer = setTimeout(() => {
-    toast.value = "";
-  }, 1800);
+  });
 }
 
 onUnmounted(() => {
   pauseTimer();
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-  }
+  hideToast();
 });
 </script>
 
@@ -768,7 +729,7 @@ onUnmounted(() => {
     </article>
 
     <transition name="toast-fade">
-      <div v-if="toast" class="toast">{{ toast }}</div>
+      <div v-if="toastVisible" class="toast">{{ toast }}</div>
     </transition>
   </section>
 </template>

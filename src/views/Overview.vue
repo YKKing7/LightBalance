@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { addWaterIntake } from "../services/backend/diet";
+import { useToast } from "../services/composables/useToast";
 import type { OverviewSummary, Tone } from "../services/types";
+import { formatDateTime, todayDateString } from "../services/utils/format";
+import { readJson, writeJson } from "../services/utils/storage";
 
 const props = defineProps<{
   summary: OverviewSummary;
@@ -37,12 +40,12 @@ const updatedAtLabel = computed(() => {
     return "尚未同步";
   }
 
-  return new Intl.DateTimeFormat("zh-CN", {
+  return formatDateTime(props.summary.profileUpdatedAt, {
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit"
-  }).format(new Date(props.summary.profileUpdatedAt));
+  });
 });
 
 const workloadPeak = computed(() => {
@@ -105,7 +108,7 @@ function sortTodoByTimePriority(items: KanbanCard[]) {
 }
 
 const boardStorageKey = computed(() => {
-  const dateKey = props.summary.dateLabel || new Date().toISOString().slice(0, 10);
+  const dateKey = props.summary.dateLabel || todayDateString();
   return `lightbalance:overview:kanban:${props.summary.userName}:${dateKey}`;
 });
 
@@ -116,7 +119,7 @@ function saveBoardState() {
       doing: doingCards.value,
       done: doneCards.value
     };
-    localStorage.setItem(boardStorageKey.value, JSON.stringify(payload));
+    writeJson(boardStorageKey.value, payload);
   } catch (err) {
     console.warn("Failed to save overview board state", err);
   }
@@ -124,12 +127,8 @@ function saveBoardState() {
 
 function restoreBoardState(defaultState: KanbanBoardState) {
   try {
-    const raw = localStorage.getItem(boardStorageKey.value);
-    if (!raw) {
-      return defaultState;
-    }
-
-    const parsed = JSON.parse(raw) as Partial<KanbanBoardState>;
+    const parsed = readJson<Partial<KanbanBoardState> | null>(boardStorageKey.value, null);
+    if (!parsed) return defaultState;
     const parsedTodo = Array.isArray(parsed.todo) ? parsed.todo : [];
     const parsedDoing = Array.isArray(parsed.doing) ? parsed.doing : [];
     const parsedDone = Array.isArray(parsed.done) ? parsed.done : [];
@@ -332,7 +331,7 @@ function dropToCard(target: KanbanColumnKey, targetUid: string) {
     const moved = moveCardInList(listByColumn(from), uid, targetUid, placement);
     if (moved) {
       saveBoardState();
-      showToast("已更新卡片顺序", "info");
+      notify("已更新卡片顺序", "info");
     }
     onCardDragEnd();
     return;
@@ -352,7 +351,7 @@ function dropToCard(target: KanbanColumnKey, targetUid: string) {
   const insertIndex = placement === "after" ? targetIndex + 1 : targetIndex;
   toList.splice(insertIndex, 0, card);
   saveBoardState();
-  showToast(`已移动到${target === "todo" ? "待完成" : target === "doing" ? "进行中" : "已完成"}列`);
+  notify(`已移动到${target === "todo" ? "待完成" : target === "doing" ? "进行中" : "已完成"}列`);
   onCardDragEnd();
 }
 
@@ -378,7 +377,7 @@ function dropToColumn(target: KanbanColumnKey) {
 
   toList.unshift(card);
   saveBoardState();
-  showToast(`已移动到${target === "todo" ? "待完成" : target === "doing" ? "进行中" : "已完成"}列`);
+  notify(`已移动到${target === "todo" ? "待完成" : target === "doing" ? "进行中" : "已完成"}列`);
   onCardDragEnd();
 }
 
@@ -393,27 +392,16 @@ function finishTodoQuick(uid: string) {
   card.tone = "positive";
   doneCards.value.unshift(card);
   saveBoardState();
-  showToast("任务已标记完成");
+  notify("任务已标记完成");
 }
 
-const toast = ref<{ message: string; tone: "success" | "info" }>({
+const { toast, toastVisible, showToast } = useToast<{ message: string; tone: "success" | "info" }>({
   message: "",
   tone: "success"
-});
-const toastVisible = ref(false);
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
+}, { duration: 1600 });
 
-function showToast(message: string, tone: "success" | "info" = "success") {
-  toast.value = { message, tone };
-  toastVisible.value = true;
-
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-  }
-
-  toastTimer = setTimeout(() => {
-    toastVisible.value = false;
-  }, 1600);
+function notify(message: string, tone: "success" | "info" = "success") {
+  showToast({ message, tone });
 }
 
 function toNumber(text: string) {
@@ -456,44 +444,44 @@ const sleepDuration = ref(8);
 
 async function saveSleep() {
   try {
-    const today = new Date().toISOString().slice(0, 10);
-    const { updateTrendSleep } = await import('../services/backend/trend');
-    await updateTrendSleep({ 
+    const today = todayDateString();
+    const { updateTrendSleep } = await import("../services/backend/trend");
+    await updateTrendSleep({
       recordDate: today,
       sleepHours: sleepDuration.value
     });
     showSleepModal.value = false;
-    showToast("睡眠时长已更新");
-    emit('refresh');
+    notify("睡眠时长已更新");
+    emit("refresh");
   } catch (err) {
-    console.error('Failed to update sleep', err);
+    console.error("Failed to update sleep", err);
   }
 }
 
 async function handleInteraction(action: string) {
   if (!action) return;
-  if (action === 'go_water' || action === 'drink_water') {
+  if (action === "go_water" || action === "drink_water") {
     if (interacting.value === "water") return;
     interacting.value = "water";
     try {
       await addWaterIntake({ amountMl: 200 });
-      showToast("已记录喝水 +200ml");
-      emit('refresh'); // 触发重新拉取概览数据
+      notify("已记录喝水 +200ml");
+      emit("refresh");
     } finally {
       interacting.value = "";
     }
-  } else if (action === 'go_exercise' || action === 'start_workout') {
+  } else if (action === "go_exercise" || action === "start_workout") {
     emit("navigate", "exercise");
-  } else if (action === 'go_diet') {
+  } else if (action === "go_diet") {
     emit("navigate", "diet");
-  } else if (action === 'update_sleep') {
+  } else if (action === "update_sleep") {
     showSleepModal.value = true;
   } else if (action === "complete_task") {
-    showToast("任务已推进");
+    notify("任务已推进");
   } else if (action === "update_progress") {
     emit("navigate", "diet");
-  } else if (action !== 'completed' && action !== 'none') {
-    console.warn('Unknown action:', action);
+  } else if (action !== "completed" && action !== "none") {
+    console.warn("Unknown action:", action);
   }
 }
 
@@ -529,9 +517,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener("keydown", handleKeydown);
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-  }
 });
 </script>
 

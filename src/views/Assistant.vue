@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { AskAssistantInput, AssistantModalityIdea, AssistantPlan, GeminiProbeResult } from "../services/types";
+import { formatDateTime } from "../services/utils/format";
 
 const props = defineProps<{
   plan: AssistantPlan;
@@ -141,12 +142,12 @@ function useQuickQuestion(content: string) {
 }
 
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat("zh-CN", {
+  return formatDateTime(value, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit"
-  }).format(new Date(value));
+  });
 }
 
 function runProbe() {

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import * as XLSX from "xlsx";
 import type { TrendMetricKey, TrendRecordRow, TrendSeriesPoint, TrendSummary } from "../services/types";
+import { formatDateOnly, formatIntegerSigned, formatSigned, todayDateString } from "../services/utils/format";
 
 const props = defineProps<{
   summary: TrendSummary;
@@ -11,7 +12,13 @@ const activeMetric = ref<TrendMetricKey>("weightKg");
 const activeStatus = ref<"全部" | string>("全部");
 const selectedDate = ref<string | null>(props.summary.series.length ? props.summary.series[props.summary.series.length - 1]?.date ?? null : null);
 const hoveredIndex = ref<number | null>(null);
-const latestAvailableDate = computed(() => { const s = props.summary.series; const r = props.summary.records; return s.length ? s[s.length - 1].date : r.length ? r[r.length - 1].date : null; });
+const latestAvailableDate = computed(() => {
+  const series = props.summary.series;
+  const records = props.summary.records;
+  if (series.length) return series[series.length - 1].date;
+  if (records.length) return records[records.length - 1].date;
+  return null;
+});
 
 watch(
   () => props.summary,
@@ -19,8 +26,9 @@ watch(
     const availableDates = new Set([...summary.series.map((item) => item.date), ...summary.records.map((item) => item.date)]);
 
     if (!selectedDate.value || !availableDates.has(selectedDate.value)) {
-      const s = summary.series; const r = summary.records;
-      selectedDate.value = s.length ? s[s.length - 1].date : r.length ? r[r.length - 1].date : null;
+      const series = summary.series;
+      const records = summary.records;
+      selectedDate.value = series.length ? series[series.length - 1].date : records.length ? records[records.length - 1].date : null;
     }
   },
   { deep: true }
@@ -94,12 +102,25 @@ const metricMeta: Record<
   }
 };
 
+const INTEGER_METRICS: TrendMetricKey[] = ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"];
+
+const selectedMetricMeta = computed(() => metricMeta[activeMetric.value]);
+
+function isIntegerMetric(metric: TrendMetricKey = activeMetric.value) {
+  return INTEGER_METRICS.includes(metric);
+}
+
+function formatMetricRangeValue(value: number) {
+  return isIntegerMetric() ? Math.round(value).toString() : value.toFixed(1);
+}
+
 // 过滤掉与 digest 卡片重复的 metric card（恢复节律、活动基础）
 const overviewMetricCards = computed(() =>
   props.summary.metricCards.filter((card) => card.label !== "恢复节律" && card.label !== "活动基础")
 );
 
 const statuses = computed(() => ["全部", ...new Set(props.summary.records.map((item) => item.status))]);
+const hasFilteredRecords = computed(() => filteredRecords.value.length > 0);
 
 const filteredRecords = computed(() => {
   if (activeStatus.value === "全部") {
@@ -121,13 +142,24 @@ const selectedRecord = computed(() => {
   return r.find((item) => item.date === fallbackDate) ?? (r.length ? r[r.length - 1] : null);
 });
 
-const latestSeriesPoint = computed(() => { const s = props.summary.series; return s.length ? s[s.length - 1] : null; });
+const latestSeriesPoint = computed(() => {
+  const series = props.summary.series;
+  return series.length ? series[series.length - 1] : null;
+});
 const firstSeriesPoint = computed(() => props.summary.series[0] ?? null);
 
 const metricValues = computed(() => props.summary.series.map((item) => Number(item[activeMetric.value])));
 
 const metricRange = computed(() => {
   const values = metricValues.value;
+  if (!values.length) {
+    return {
+      min: 0,
+      max: 0,
+      spread: 1
+    };
+  }
+
   const min = Math.min(...values);
   const max = Math.max(...values);
   const spread = max - min || Math.max(1, max * 0.06);
@@ -178,8 +210,18 @@ const metricHeadline = computed(() => {
     return "--";
   }
 
-  return metricMeta[activeMetric.value].formatter(Number(point[activeMetric.value]));
+  return selectedMetricMeta.value.formatter(Number(point[activeMetric.value]));
 });
+
+const metricChangeLabel = computed(() =>
+  isIntegerMetric()
+    ? formatIntegerSigned(metricChange.value, selectedMetricMeta.value.unit)
+    : formatSigned(metricChange.value, selectedMetricMeta.value.unit)
+);
+
+const metricRangeLabel = computed(() =>
+  `${formatMetricRangeValue(metricRange.value.min)} - ${formatMetricRangeValue(metricRange.value.max)} ${selectedMetricMeta.value.unit}`
+);
 
 const progressGap = computed(() => (props.summary.latestWeight - props.summary.targetWeight).toFixed(1));
 
@@ -381,13 +423,14 @@ const svgPoints = computed(() => {
 });
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date(`${value}T00:00:00`));
+  return formatDateOnly(value);
 }
 
 function exportToExcel() {
+  if (!filteredRecords.value.length) {
+    return;
+  }
+
   const data = filteredRecords.value.map((item) => ({
     "日期": item.date,
     "体重(kg)": item.weightKg,
@@ -402,17 +445,7 @@ function exportToExcel() {
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "每日记录");
-  XLSX.writeFile(workbook, `LightBalance_趋势记录_${new Date().toISOString().slice(0, 10)}.xlsx`);
-}
-
-function formatSigned(value: number, unit: string, digits = 1) {
-  const prefix = value > 0 ? "+" : "";
-  return `${prefix}${value.toFixed(digits)} ${unit}`;
-}
-
-function formatIntegerSigned(value: number, unit: string) {
-  const prefix = value > 0 ? "+" : "";
-  return `${prefix}${Math.round(value)} ${unit}`;
+  XLSX.writeFile(workbook, `LightBalance_趋势记录_${todayDateString()}.xlsx`);
 }
 
 function describeDeviation(value: number) {
@@ -420,9 +453,8 @@ function describeDeviation(value: number) {
     return "接近阶段均值";
   }
 
-  const integerMetrics = ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"];
-  const absValue = integerMetrics.includes(activeMetric.value) ? Math.round(Math.abs(value)) : Math.abs(value).toFixed(1);
-  const unit = metricMeta[activeMetric.value].unit;
+  const absValue = isIntegerMetric() ? Math.round(Math.abs(value)) : Math.abs(value).toFixed(1);
+  const unit = selectedMetricMeta.value.unit;
   return value > 0 ? `高于均值 ${absValue} ${unit}` : `低于均值 ${absValue} ${unit}`;
 }
 
@@ -448,7 +480,7 @@ const svgYTicks = computed(() => {
     const ratio = i / 3;
     const y = SVG_PADDING_TOP + chartHeight - ratio * chartHeight;
     const value = range.min + ratio * range.spread;
-    const label = ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric.value) ? Math.round(value).toString() : value.toFixed(1);
+    const label = formatMetricRangeValue(value);
     ticks.push({ y, label });
   }
   return ticks;
@@ -568,21 +600,14 @@ const svgYTicks = computed(() => {
 
         <div class="chart-hero">
           <div class="chart-hero__stat">
-            <span>{{ metricMeta[activeMetric].label }}当前读数</span>
+            <span>{{ selectedMetricMeta.label }}当前读数</span>
             <strong>{{ metricHeadline }}</strong>
-            <small>
-              {{
-                ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric)
-                  ? formatIntegerSigned(metricChange, metricMeta[activeMetric].unit)
-                  : formatSigned(metricChange, metricMeta[activeMetric].unit)
-              }}
-              · {{ metricMeta[activeMetric].judge(metricChange) }}
-            </small>
+            <small>{{ metricChangeLabel }} · {{ selectedMetricMeta.judge(metricChange) }}</small>
           </div>
           <div class="chart-hero__stat">
             <span>阶段均值</span>
-            <strong>{{ metricMeta[activeMetric].formatter(metricAverage) }}</strong>
-            <small>区间 {{ ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric) ? Math.round(metricRange.min) : metricRange.min.toFixed(1) }} - {{ ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric) ? Math.round(metricRange.max) : metricRange.max.toFixed(1) }} {{ metricMeta[activeMetric].unit }}</small>
+            <strong>{{ selectedMetricMeta.formatter(metricAverage) }}</strong>
+            <small>区间 {{ metricRangeLabel }}</small>
           </div>
         </div>
 
@@ -620,7 +645,7 @@ const svgYTicks = computed(() => {
             <polyline
               v-if="svgPoints.polyline"
               :points="svgPoints.polyline"
-              :stroke="metricMeta[activeMetric].accent"
+              :stroke="selectedMetricMeta.accent"
               class="svg-line"
             />
 
@@ -632,7 +657,7 @@ const svgYTicks = computed(() => {
               :x2="SVG_WIDTH - SVG_PADDING_X"
               :y2="svgYTicks[1]?.y ?? 0"
               class="svg-avg-line"
-              :stroke="metricMeta[activeMetric].accent"
+              :stroke="selectedMetricMeta.accent"
             />
 
             <!-- 数据点 -->
@@ -648,8 +673,8 @@ const svgYTicks = computed(() => {
                 :cx="dot.x"
                 :cy="dot.y"
                 :r="hoveredIndex === dot.index || selectedDate === dot.date ? 7 : 4"
-                :fill="selectedDate === dot.date ? metricMeta[activeMetric].accent : '#fff'"
-                :stroke="metricMeta[activeMetric].accent"
+                :fill="selectedDate === dot.date ? selectedMetricMeta.accent : '#fff'"
+                :stroke="selectedMetricMeta.accent"
                 :stroke-width="selectedDate === dot.date ? 3 : 2"
                 class="svg-dot"
               />
@@ -670,7 +695,7 @@ const svgYTicks = computed(() => {
                   class="svg-tooltip-text"
                   text-anchor="middle"
                 >
-                  {{ ["steps", "trainingMinutes", "calorieIntake", "calorieBurned"].includes(activeMetric) ? Math.round(dot.value) : dot.value.toFixed(1) }}
+                  {{ isIntegerMetric() ? Math.round(dot.value) : dot.value.toFixed(1) }}
                 </text>
               </g>
 
@@ -908,7 +933,7 @@ const svgYTicks = computed(() => {
           <h4>每日记录</h4>
         </div>
         <div class="records-card__actions">
-          <button type="button" class="records-card__export" @click="exportToExcel">📥 导出 Excel</button>
+          <button type="button" class="records-card__export" :disabled="!hasFilteredRecords" @click="exportToExcel">导出 Excel</button>
           <div class="status-pills">
           <button
             v-for="status in statuses"
@@ -947,6 +972,9 @@ const svgYTicks = computed(() => {
             <span>热量差 {{ item.calorieGap }} kcal</span>
           </div>
         </button>
+        <div v-if="!hasFilteredRecords" class="record-empty">
+          当前筛选条件下暂无记录
+        </div>
       </div>
     </article>
   </section>
@@ -1673,8 +1701,8 @@ const svgYTicks = computed(() => {
 .records-card {
   padding: 24px;
   background:
-    radial-gradient(circle at left top, rgba(75, 149, 240, 0.08), transparent 22%),
-    rgba(255, 252, 246, 0.96);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0 1px, transparent 1px 12px),
+    var(--color-surface);
 }
 
 .records-card__header {
@@ -1713,6 +1741,12 @@ const svgYTicks = computed(() => {
   background: rgba(57, 87, 63, 0.12);
   box-shadow: 0 2px 8px rgba(57, 87, 63, 0.15);
   transform: translateY(-1px);
+}
+
+.records-card__export:disabled {
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
 }
 
 .status-pills {
@@ -1784,6 +1818,14 @@ const svgYTicks = computed(() => {
 
 .record-row--active {
   box-shadow: inset 0 0 0 2px rgba(32, 78, 65, 0.16);
+}
+
+.record-empty {
+  padding: 18px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
+  color: var(--color-text-soft);
+  text-align: center;
 }
 
 /* ===== 响应式 ===== */

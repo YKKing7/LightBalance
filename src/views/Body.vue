@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, watch, ref } from "vue";
 import type { BodyProfile, TrendSeriesPoint, TrendSummary, UserProfileRecord } from "../services/types";
+import { clamp } from "../services/utils/format";
 
 const isEditing = ref(false);
 
@@ -80,10 +81,6 @@ function toFiniteNumber(value: unknown) {
 function roundNumber(value: number, precision = 1) {
   const factor = 10 ** precision;
   return Math.round(value * factor) / factor;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
 }
 
 function bmiToneByValue(value: number | null): "positive" | "warning" | "danger" {
@@ -384,10 +381,10 @@ const weightScaleMax = computed(() => {
 });
 const weightScaleRange = computed(() => Math.max(weightScaleMax.value - weightScaleMin.value, 1));
 const currentWeightPercent = computed(() =>
-  Math.min(Math.max(((props.profile.weightKg - weightScaleMin.value) / weightScaleRange.value) * 100, 0), 100)
+  clamp(((props.profile.weightKg - weightScaleMin.value) / weightScaleRange.value) * 100, 0, 100)
 );
 const targetWeightPercent = computed(() =>
-  Math.min(Math.max(((props.profile.targetWeightKg - weightScaleMin.value) / weightScaleRange.value) * 100, 0), 100)
+  clamp(((props.profile.targetWeightKg - weightScaleMin.value) / weightScaleRange.value) * 100, 0, 100)
 );
 const weightProgressLabel = computed(() => {
   if (weightDelta.value > 0) {

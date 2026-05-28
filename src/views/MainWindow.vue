@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import Assistant from "./Assistant.vue";
 import Body from "./Body.vue";
 import Overview from "./Overview.vue";
@@ -9,7 +9,9 @@ import ProfilePanel from "./ProfilePanel.vue";
 import Trend from "./Trend.vue";
 import { useAuth } from "../services/composables/useAuth";
 import { useDesktopApp } from "../services/composables/useDesktopApp";
+import { useRememberedScroll } from "../services/composables/useRememberedScroll";
 import type { UserProfileRecord } from "../services/types";
+import { formatDateTime } from "../services/utils/format";
 
 const modules: import("../services/types").ModuleDefinition[] = [
   { key: "overview", label: "观 · 今日概览", description: "看见当下状态与恢复节律" },
@@ -50,9 +52,8 @@ const profileLoading = ref(false);
 const profileSaving = ref(false);
 const settingsSaving = ref(false);
 const shellBodyRef = ref<HTMLElement | null>(null);
-const pageScrollPositions = new Map<string, number>();
 
-const nickname = computed(() => currentUser.value?.nickname ?? "鐢ㄦ埛");
+const nickname = computed(() => currentUser.value?.nickname ?? "用户");
 const username = computed(() => currentUser.value?.username ?? "guest");
 const avatarText = computed(() => nickname.value.slice(0, 1).toUpperCase());
 const currentModuleMeta = computed(() => modules.find((item) => item.key === currentView.value) ?? null);
@@ -72,30 +73,17 @@ const bottomBarMessage = computed(() => {
   return currentModuleMeta.value?.description ?? "让每一次记录都更接近稳定、轻盈的日常。";
 });
 const todayLabel = computed(() =>
-  new Intl.DateTimeFormat("zh-CN", {
+  formatDateTime(new Date(), {
     month: "long",
     day: "numeric",
     weekday: "short"
-  }).format(new Date())
+  })
 );
 
-watch(
-  () => currentPageKey.value,
-  async (nextKey, previousKey) => {
-    if (previousKey && shellBodyRef.value) {
-      pageScrollPositions.set(previousKey, shellBodyRef.value.scrollTop);
-    }
-
-    await nextTick();
-    if (shellBodyRef.value) {
-      shellBodyRef.value.scrollTop = pageScrollPositions.get(nextKey) ?? 0;
-    }
-  }
-);
+const { rememberCurrentScroll } = useRememberedScroll(currentPageKey, shellBodyRef);
 
 function handleShellBodyScroll() {
-  if (!shellBodyRef.value) return;
-  pageScrollPositions.set(currentPageKey.value, shellBodyRef.value.scrollTop);
+  rememberCurrentScroll();
 }
 
 async function handleModuleNavigate(view: (typeof currentView.value)) {
@@ -272,7 +260,7 @@ async function handleCloseWindow() {
             </span>
           </button>
 
-          <button class="icon-chip icon-chip--square" type="button" aria-label="璁剧疆" title="璁剧疆" @click="openSettings">
+          <button class="icon-chip icon-chip--square" type="button" aria-label="设置" title="设置" @click="openSettings">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path
                 d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.62-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.64.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.23 1.13-.54 1.63-.94l2.39.96c.24.1.51.01.64-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"

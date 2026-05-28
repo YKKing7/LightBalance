@@ -460,13 +460,12 @@ function handleSavePassword() {
   justify-content: space-between;
   gap: 18px;
   padding: 24px 28px;
-  border-radius: 24px;
+  border-radius: var(--radius-panel);
   background:
-    radial-gradient(circle at 88% 14%, rgba(255, 205, 107, 0.22), transparent 28%),
-    radial-gradient(circle at 10% 80%, rgba(115, 174, 113, 0.14), transparent 30%),
-    rgba(255, 252, 246, 0.96);
-  border: 1px solid rgba(57, 87, 63, 0.12);
-  box-shadow: 0 16px 40px rgba(30, 44, 37, 0.08);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 1px, transparent 1px 12px),
+    var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-panel);
 }
 
 .profile-panel__header-left {
@@ -487,8 +486,8 @@ function handleSavePassword() {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #1a2e22, #3d6b4a, #5a9a6a);
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, var(--color-primary-strong), #3d6b4a, #5a9a6a);
   color: #f8f4ea;
   font-size: 1.6rem;
   font-weight: 800;
@@ -528,8 +527,8 @@ function handleSavePassword() {
   gap: 2px;
   text-align: center;
   padding: 8px 14px;
-  border-radius: 16px;
-  background: rgba(45, 100, 70, 0.06);
+  border-radius: var(--radius-control);
+  background: var(--color-primary-soft);
   min-width: 72px;
 }
 
@@ -545,10 +544,10 @@ function handleSavePassword() {
 
 .profile-panel__close {
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--radius-control);
   padding: 10px 16px;
-  background: rgba(34, 52, 42, 0.08);
-  color: #284033;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
   font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
@@ -569,10 +568,10 @@ function handleSavePassword() {
 
 .section-card {
   padding: 22px;
-  border-radius: 24px;
-  background: rgba(255, 252, 246, 0.92);
-  border: 1px solid rgba(57, 87, 63, 0.12);
-  box-shadow: 0 16px 40px rgba(30, 44, 37, 0.08);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-panel);
   display: grid;
   gap: 16px;
   position: relative;
@@ -706,9 +705,9 @@ function handleSavePassword() {
 .profile-field select,
 .profile-field textarea {
   padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(61, 84, 67, 0.14);
-  background: rgba(255, 255, 255, 0.96);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-surface-strong);
   color: var(--color-text);
   outline: none;
   resize: none;
@@ -747,7 +746,7 @@ function handleSavePassword() {
 .profile-logout {
   justify-self: start;
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--radius-control);
   padding: 14px 18px;
   color: #fffaf0;
   font-weight: 700;
@@ -762,7 +761,7 @@ function handleSavePassword() {
 }
 
 .profile-save {
-  background: linear-gradient(135deg, #22342a, #42604b);
+  background: linear-gradient(135deg, var(--color-primary-strong), #42604b);
 }
 
 .profile-save:disabled {

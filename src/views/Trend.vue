@@ -966,10 +966,10 @@ const svgYTicks = computed(() => {
 .breakdown-card,
 .insights-card,
 .records-card {
-  border-radius: 24px;
-  background: rgba(255, 252, 246, 0.92);
-  border: 1px solid rgba(57, 87, 63, 0.1);
-  box-shadow: 0 16px 40px rgba(30, 44, 37, 0.08);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-panel);
 }
 
 .overview-bar__eyebrow,
@@ -989,14 +989,13 @@ const svgYTicks = computed(() => {
 .overview-bar {
   padding: 28px;
   background:
-    radial-gradient(circle at 85% 18%, rgba(115, 174, 113, 0.14), transparent 26%),
-    radial-gradient(circle at 12% 80%, rgba(255, 205, 107, 0.12), transparent 24%),
-    rgba(255, 252, 246, 0.96);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 1px, transparent 1px 12px),
+    var(--color-surface);
 }
 
 .overview-bar__header h3 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.8rem;
   color: var(--color-text);
 }
 
@@ -1016,9 +1015,9 @@ const svgYTicks = computed(() => {
 
 .metric-card {
   padding: 18px;
-  border-radius: 20px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(244, 247, 252, 0.72));
-  border: 1px solid rgba(57, 87, 63, 0.08);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-line);
 }
 
 .metric-card span {
@@ -1061,8 +1060,8 @@ const svgYTicks = computed(() => {
 
 .meta-item {
   padding: 16px 18px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
   backdrop-filter: blur(4px);
 }
 
@@ -1088,8 +1087,8 @@ const svgYTicks = computed(() => {
 .chart-card {
   padding: 24px;
   background:
-    radial-gradient(circle at right top, rgba(45, 137, 110, 0.08), transparent 24%),
-    rgba(255, 252, 246, 0.96);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0 1px, transparent 1px 12px),
+    var(--color-surface);
 }
 
 .chart-card__header {

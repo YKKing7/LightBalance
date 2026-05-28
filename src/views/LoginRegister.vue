@@ -183,13 +183,12 @@ async function handleSubmit() {
 .auth-screen {
   --auth-ink: #223127;
   --auth-ink-soft: #667469;
-  --auth-panel: rgba(255, 251, 244, 0.9);
-  --auth-panel-strong: rgba(255, 253, 249, 0.98);
-  --auth-forest: #294033;
-  --auth-forest-soft: #45624f;
-  --auth-line: rgba(74, 96, 80, 0.14);
-  --auth-shadow: 0 26px 60px rgba(39, 57, 47, 0.14);
-  --auth-serif: "Georgia", "Times New Roman", "Songti SC", "STSong", serif;
+  --auth-panel: var(--color-surface);
+  --auth-panel-strong: var(--color-surface-strong);
+  --auth-forest: var(--color-primary-strong);
+  --auth-forest-soft: var(--color-primary);
+  --auth-line: var(--color-line);
+  --auth-shadow: var(--shadow-panel);
   --auth-sans: "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
   min-height: calc(100vh - 44px);
   display: grid;
@@ -198,17 +197,13 @@ async function handleSubmit() {
   overflow: hidden;
   font-family: var(--auth-sans);
   background:
-    radial-gradient(circle at 12% 16%, rgba(233, 211, 171, 0.34), transparent 18%),
-    radial-gradient(circle at 84% 18%, rgba(205, 223, 204, 0.28), transparent 18%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0 1px, transparent 1px 12px),
     linear-gradient(135deg, #f7f2e8 0%, #eef4ec 52%, #f7f4ee 100%);
 }
 
 .auth-screen::before,
 .auth-screen::after {
-  content: "";
-  position: absolute;
-  border-radius: 999px;
-  pointer-events: none;
+  content: none;
 }
 
 .auth-screen::before {
@@ -252,12 +247,12 @@ async function handleSubmit() {
 .auth-hero__panel {
   width: min(360px, 100%);
   padding: 34px 30px;
-  border-radius: 34px;
+  border-radius: var(--radius-panel);
   color: #f8f4eb;
   background:
     linear-gradient(155deg, rgba(28, 45, 36, 0.98), rgba(44, 67, 54, 0.96) 60%, rgba(74, 102, 84, 0.92)),
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
-  box-shadow: 0 28px 60px rgba(31, 48, 39, 0.22);
+  box-shadow: 0 28px 60px rgba(31, 48, 39, 0.18);
   animation: authRise 720ms ease both;
 }
 
@@ -282,7 +277,6 @@ async function handleSubmit() {
 
 .auth-hero__mark span {
   color: #fff6e6;
-  font-family: var(--auth-serif);
   font-size: 1.3rem;
   letter-spacing: 0.08em;
 }
@@ -290,8 +284,8 @@ async function handleSubmit() {
 .auth-hero h1 {
   margin: 22px 0 12px;
   color: #fff8ec;
-  font-family: var(--auth-serif);
-  font-size: clamp(2.4rem, 4vw, 3.4rem);
+  font-size: 2.3rem;
+  font-weight: 800;
   line-height: 1.08;
 }
 
@@ -323,7 +317,7 @@ async function handleSubmit() {
 .auth-card {
   width: min(440px, 100%);
   padding: 32px 30px 28px;
-  border-radius: 32px;
+  border-radius: var(--radius-panel);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.4)),
     var(--auth-panel);
@@ -348,7 +342,6 @@ async function handleSubmit() {
 .auth-card__header h2 {
   margin: 0;
   color: var(--auth-ink);
-  font-family: var(--auth-serif);
   font-size: 2rem;
   line-height: 1.15;
 }
@@ -364,7 +357,7 @@ async function handleSubmit() {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
-  border-radius: 20px;
+  border-radius: var(--radius-card);
   background: rgba(54, 77, 62, 0.06);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
@@ -372,7 +365,7 @@ async function handleSubmit() {
 .auth-tabs__item {
   padding: 12px 14px;
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: #4c5f53;
   font-weight: 700;
@@ -416,7 +409,7 @@ async function handleSubmit() {
 .auth-field input {
   width: 100%;
   padding: 15px 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--auth-line);
   background: var(--auth-panel-strong);
   color: var(--auth-ink);
@@ -448,7 +441,7 @@ async function handleSubmit() {
   margin-top: 4px;
   padding: 15px 18px;
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--radius-control);
   color: #fff9ef;
   font-weight: 700;
   letter-spacing: 0.04em;

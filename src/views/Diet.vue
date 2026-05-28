@@ -809,10 +809,10 @@ onUnmounted(() => {
 
 .panel,
 .metric-card {
-  border: 1px solid rgba(57, 87, 63, 0.12);
-  border-radius: 24px;
-  background: rgba(255, 252, 246, 0.94);
-  box-shadow: 0 18px 44px rgba(31, 44, 36, 0.08);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
 }
 
 .panel {
@@ -824,7 +824,7 @@ onUnmounted(() => {
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 18px;
   align-items: stretch;
-  background: linear-gradient(135deg, rgba(255, 251, 244, 0.98), rgba(241, 248, 244, 0.96));
+  background: linear-gradient(135deg, var(--color-surface-strong), rgba(241, 248, 244, 0.96));
 }
 
 .eyebrow {
@@ -842,7 +842,8 @@ onUnmounted(() => {
 }
 
 .hero h3 {
-  font-size: 2rem;
+  font-size: 1.8rem;
+  line-height: 1.18;
 }
 
 .hero__copy,
@@ -868,8 +869,9 @@ table thead th {
   align-content: center;
   gap: 8px;
   padding: 20px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.62);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-line);
 }
 
 .hero__summary strong {
@@ -949,9 +951,9 @@ table tbody td {
 .gap-row,
 .tip-card,
 .meal-stats article {
-  border: 1px solid rgba(57, 87, 63, 0.1);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
 }
 
 .plan-card {
@@ -1006,10 +1008,11 @@ table tbody td {
 
 .primary-button {
   margin-top: 14px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #314f3f, #668f73);
+  padding: 10px 15px;
+  border-radius: var(--radius-control);
+  background: linear-gradient(135deg, var(--color-primary-strong), #5f876b);
   color: #f7fbf8;
+  box-shadow: 0 10px 20px rgba(47, 87, 66, 0.16);
 }
 
 .button-row button,
@@ -1017,8 +1020,8 @@ table tbody td {
 .filter-chip {
   padding: 9px 12px;
   border-radius: 999px;
-  background: rgba(57, 87, 63, 0.08);
-  color: #335140;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
 }
 
 .button-row button:not(.ghost-button) {
@@ -1028,9 +1031,9 @@ table tbody td {
 
 .danger-button {
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: rgba(185, 77, 77, 0.12);
-  color: #8a3c3c;
+  color: var(--color-danger);
 }
 
 .filter-chip--active {
@@ -1105,9 +1108,9 @@ table tbody td {
   width: 100%;
   box-sizing: border-box;
   padding: 12px 13px;
-  border: 1px solid rgba(57, 87, 63, 0.14);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-strong);
   color: var(--color-text);
 }
 
@@ -1174,8 +1177,8 @@ table td {
   bottom: 22px;
   z-index: 1200;
   padding: 12px 16px;
-  border-radius: 12px;
-  background: #335f42;
+  border-radius: var(--radius-control);
+  background: var(--color-primary);
   color: #fff;
   font-weight: 700;
   box-shadow: 0 16px 30px rgba(24, 33, 27, 0.18);

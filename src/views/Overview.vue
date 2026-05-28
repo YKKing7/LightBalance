@@ -906,10 +906,10 @@ onUnmounted(() => {
 .panel,
 .metric-card {
   padding: 24px;
-  border-radius: 26px;
-  background: rgba(255, 252, 246, 0.92);
-  border: 1px solid rgba(57, 87, 63, 0.12);
-  box-shadow: 0 18px 44px rgba(31, 44, 36, 0.08);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-panel);
 }
 
 .hero {
@@ -917,9 +917,8 @@ onUnmounted(() => {
   grid-template-columns: minmax(0, 1.55fr) 340px;
   gap: 20px;
   background:
-    radial-gradient(circle at 88% 14%, rgba(255, 205, 107, 0.35), transparent 24%),
-    radial-gradient(circle at 10% 10%, rgba(115, 174, 113, 0.18), transparent 30%),
-    linear-gradient(135deg, rgba(255, 252, 246, 0.98), rgba(247, 242, 232, 0.96));
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 1px, transparent 1px 12px),
+    linear-gradient(135deg, var(--color-surface-strong), rgba(247, 242, 232, 0.96));
 }
 
 .eyebrow {
@@ -963,7 +962,7 @@ onUnmounted(() => {
 }
 
 .hero h3 {
-  font-size: 2rem;
+  font-size: 1.8rem;
   line-height: 1.1;
 }
 
@@ -997,9 +996,9 @@ onUnmounted(() => {
 .hero__score {
   min-width: 112px;
   padding: 18px 16px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid rgba(57, 87, 63, 0.1);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-line);
   text-align: center;
 }
 
@@ -1025,9 +1024,9 @@ onUnmounted(() => {
 .hero__goal,
 .hero__completion,
 .hero__action {
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.56);
-  border: 1px solid rgba(57, 87, 63, 0.1);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-line);
 }
 
 .hero__goal,
@@ -1230,8 +1229,8 @@ onUnmounted(() => {
 .compliance-row,
 .plan-card {
   padding: 18px;
-  border-radius: 20px;
-  background: rgba(246, 243, 235, 0.82);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
 }
 
 .today-card {

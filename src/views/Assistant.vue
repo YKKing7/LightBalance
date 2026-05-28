@@ -228,15 +228,15 @@ function runProbe() {
 <style scoped>
 .assistant-chat {
   --bg: linear-gradient(180deg, rgba(247, 243, 236, 0.96), rgba(240, 236, 227, 0.98));
-  --surface: rgba(255, 252, 247, 0.9);
-  --surface-strong: rgba(255, 255, 255, 0.97);
-  --line: rgba(36, 58, 57, 0.12);
-  --line-strong: rgba(36, 58, 57, 0.18);
-  --text: #203133;
-  --text-soft: #687876;
-  --deep: #173b40;
-  --mint: #dcefe2;
-  --gold: #f3e4c7;
+  --surface: var(--color-surface);
+  --surface-strong: var(--color-surface-strong);
+  --line: var(--color-line);
+  --line-strong: var(--color-line-strong);
+  --text: var(--color-text);
+  --text-soft: var(--color-text-soft);
+  --deep: var(--color-primary-strong);
+  --mint: var(--color-primary-soft);
+  --gold: rgba(188, 123, 63, 0.18);
   display: grid;
   height: 100%;
   min-height: 0;
@@ -250,12 +250,11 @@ function runProbe() {
   min-height: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 26px;
+  border-radius: var(--radius-panel);
   background:
-    radial-gradient(circle at top left, rgba(220, 178, 99, 0.16), transparent 28%),
-    radial-gradient(circle at top right, rgba(118, 164, 150, 0.12), transparent 24%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.24) 0 1px, transparent 1px 12px),
     var(--bg);
-  box-shadow: 0 24px 60px rgba(21, 32, 34, 0.08);
+  box-shadow: var(--shadow-panel);
 }
 
 .assistant-chat__header {
@@ -285,8 +284,8 @@ function runProbe() {
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 13px;
-  background: linear-gradient(145deg, #173b40, #4f7f78);
+  border-radius: var(--radius-control);
+  background: linear-gradient(145deg, var(--color-primary-strong), #4f7f78);
   color: #fffaf1;
   font-weight: 800;
   font-size: 1rem;
@@ -382,7 +381,7 @@ function runProbe() {
   max-width: min(720px, 92%);
   padding: 13px 15px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   background: var(--surface);
   box-shadow: 0 12px 26px rgba(20, 30, 34, 0.05);
 }
@@ -480,8 +479,8 @@ function runProbe() {
   min-width: 82px;
   align-self: stretch;
   padding: 7px 12px;
-  border-radius: 10px;
-  background: linear-gradient(145deg, #173b40, #5a8c84);
+  border-radius: var(--radius-control);
+  background: linear-gradient(145deg, var(--color-primary-strong), #5a8c84);
   color: #fffaf1;
   cursor: pointer;
   font-weight: 800;

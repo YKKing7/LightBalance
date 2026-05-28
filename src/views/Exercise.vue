@@ -782,10 +782,10 @@ onUnmounted(() => {
 
 .panel,
 .metric-card {
-  border: 1px solid rgba(57, 87, 63, 0.12);
-  border-radius: 24px;
-  background: rgba(255, 252, 246, 0.94);
-  box-shadow: 0 18px 44px rgba(31, 44, 36, 0.08);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
 }
 
 .panel {
@@ -796,7 +796,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 260px;
   gap: 18px;
-  background: linear-gradient(135deg, rgba(255, 251, 244, 0.98), rgba(240, 248, 242, 0.96));
+  background: linear-gradient(135deg, var(--color-surface-strong), rgba(240, 248, 242, 0.96));
 }
 
 .eyebrow {
@@ -814,7 +814,8 @@ onUnmounted(() => {
 }
 
 .hero h3 {
-  font-size: 2.05rem;
+  font-size: 1.8rem;
+  line-height: 1.18;
 }
 
 .hero__copy,
@@ -842,8 +843,9 @@ onUnmounted(() => {
   align-content: center;
   gap: 8px;
   padding: 20px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.62);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-line);
 }
 
 .hero__progress strong {
@@ -916,9 +918,9 @@ onUnmounted(() => {
 .tip-card,
 .target-bars article,
 .workout-card {
-  border: 1px solid rgba(57, 87, 63, 0.1);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
 }
 
 .current-card {
@@ -952,8 +954,8 @@ onUnmounted(() => {
 .ghost-button {
   padding: 10px 13px;
   border-radius: 999px;
-  background: rgba(57, 87, 63, 0.08);
-  color: #335140;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
 }
 
 .button-row button:disabled,
@@ -964,9 +966,10 @@ onUnmounted(() => {
 
 .primary-button {
   padding: 10px 14px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #314f3f, #668f73);
+  border-radius: var(--radius-control);
+  background: linear-gradient(135deg, var(--color-primary-strong), #5f876b);
   color: #f7fbf8;
+  box-shadow: 0 10px 20px rgba(47, 87, 66, 0.16);
 }
 
 .target-bars,
@@ -1062,9 +1065,9 @@ onUnmounted(() => {
   width: 100%;
   box-sizing: border-box;
   padding: 12px 13px;
-  border: 1px solid rgba(57, 87, 63, 0.14);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-strong);
   color: var(--color-text);
 }
 
@@ -1104,8 +1107,8 @@ onUnmounted(() => {
   bottom: 22px;
   z-index: 1200;
   padding: 12px 16px;
-  border-radius: 12px;
-  background: #335f42;
+  border-radius: var(--radius-control);
+  background: var(--color-primary);
   color: #fff;
   font-weight: 700;
   box-shadow: 0 16px 30px rgba(24, 33, 27, 0.18);

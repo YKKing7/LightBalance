@@ -964,26 +964,23 @@ function fieldErrorFor(key: string) {
 .panel,
 .goal-card {
   padding: 22px;
-  border-radius: 28px;
-  background: rgba(255, 252, 246, 0.92);
-  border: 1px solid rgba(57, 87, 63, 0.12);
-  box-shadow: 0 18px 44px rgba(30, 44, 37, 0.08);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-panel);
 }
 
 .hero {
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(255, 252, 246, 0.98), rgba(244, 248, 241, 0.96) 52%, rgba(231, 241, 233, 0.92));
+    linear-gradient(135deg, var(--color-surface-strong), rgba(244, 248, 241, 0.96) 52%, rgba(231, 241, 233, 0.92));
 }
 
 .hero__backdrop {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 14% 18%, rgba(246, 214, 153, 0.2), transparent 24%),
-    radial-gradient(circle at 88% 18%, rgba(130, 181, 114, 0.22), transparent 28%),
-    radial-gradient(circle at 72% 78%, rgba(194, 223, 196, 0.2), transparent 26%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px 12px);
   pointer-events: none;
 }
 
@@ -1013,9 +1010,9 @@ function fieldErrorFor(key: string) {
   gap: 6px;
   min-width: 220px;
   padding: 18px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(78, 106, 81, 0.1);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-line);
   backdrop-filter: blur(10px);
 }
 
@@ -1047,8 +1044,8 @@ function fieldErrorFor(key: string) {
   display: grid;
   gap: 8px;
   padding: 20px;
-  border-radius: 22px;
-  border: 1px solid rgba(78, 106, 81, 0.1);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
   backdrop-filter: blur(12px);
 }
 

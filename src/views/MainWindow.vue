@@ -419,10 +419,9 @@ async function handleCloseWindow() {
   height: 100vh;
   padding: 24px 18px;
   overflow-y: auto;
-  font-family: "KaiTi", "STKaiti", "Kaiti SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei", serif;
   background:
-    radial-gradient(circle at top left, rgba(255, 219, 152, 0.5), transparent 42%),
-    linear-gradient(180deg, rgba(35, 48, 40, 0.98), rgba(18, 25, 22, 0.98));
+    linear-gradient(135deg, rgba(255, 244, 218, 0.07) 0 1px, transparent 1px 12px),
+    linear-gradient(180deg, #24382c 0%, #17241d 100%);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -430,25 +429,10 @@ async function handleCloseWindow() {
   padding: 20px 18px 22px;
   color: rgba(250, 246, 236, 0.96);
   background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 245, 220, 0.016) 0,
-      rgba(255, 245, 220, 0.016) 1px,
-      transparent 1px,
-      transparent 11px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      rgba(78, 60, 32, 0.028) 0,
-      rgba(78, 60, 32, 0.028) 2px,
-      rgba(255, 255, 255, 0.01) 2px,
-      rgba(255, 255, 255, 0.01) 18px
-    ),
-    radial-gradient(circle at 18% 14%, rgba(214, 178, 103, 0.14), transparent 28%),
-    radial-gradient(circle at 82% 88%, rgba(62, 82, 63, 0.12), transparent 34%),
-    linear-gradient(180deg, rgba(112, 101, 72, 0.98), rgba(92, 84, 60, 0.98));
-  border: 1px solid rgba(225, 200, 146, 0.24);
-  border-radius: 28px;
+    linear-gradient(135deg, rgba(255, 249, 235, 0.13), rgba(255, 255, 255, 0)),
+    linear-gradient(180deg, rgba(84, 94, 65, 0.96), rgba(63, 74, 53, 0.96));
+  border: 1px solid rgba(225, 200, 146, 0.2);
+  border-radius: var(--radius-panel);
   box-shadow:
     inset 0 1px 0 rgba(255, 244, 214, 0.16),
     inset 0 -10px 20px rgba(48, 41, 28, 0.14),
@@ -480,10 +464,9 @@ async function handleCloseWindow() {
 
 .brand h1 {
   margin: 12px 0 10px;
-  font-family: "STKaiti", "KaiTi", "Kaiti SC", "Songti SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei", serif;
-  font-size: 2.34rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0;
   line-height: 1.06;
   color: rgba(255, 247, 228, 0.98);
   text-shadow: 0 2px 8px rgba(41, 31, 14, 0.14);
@@ -527,17 +510,17 @@ async function handleCloseWindow() {
 
 .nav {
   display: grid;
-  gap: 20px;
+  gap: 10px;
   margin-top: 18px;
 }
 
 .nav__item {
-  padding: 16px;
-  border-radius: 18px;
+  padding: 14px 15px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.045);
   color: rgba(248, 242, 231, 0.86);
-  text-align: center;
+  text-align: left;
   cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
@@ -548,25 +531,25 @@ async function handleCloseWindow() {
 }
 
 .nav__item span {
-  font-size: 1.23rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0;
   line-height: 1.18;
 }
 
 .nav__item small {
-  margin-top: 6px;
+  margin-top: 5px;
   color: rgba(248, 242, 231, 0.62);
-  font-size: 0.95rem;
+  font-size: 0.78rem;
   line-height: 1.4;
   letter-spacing: 0.03em;
 }
 
 .nav__item:hover,
 .nav__item--active {
-  transform: translateX(4px);
-  border-color: rgba(255, 214, 135, 0.65);
-  background: rgba(255, 214, 135, 0.1);
+  transform: translateX(3px);
+  border-color: rgba(227, 194, 126, 0.52);
+  background: rgba(255, 246, 225, 0.11);
 }
 
 .shell__main {
@@ -615,9 +598,9 @@ async function handleCloseWindow() {
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px 8px 20px;
-  background: rgba(244, 240, 231, 0.94);
+  background: rgba(250, 247, 240, 0.94);
   color: var(--color-text);
-  border-bottom: 1px solid rgba(57, 87, 63, 0.12);
+  border-bottom: 1px solid var(--color-line);
   -webkit-app-region: drag;
   app-region: drag;
 }
@@ -823,12 +806,11 @@ async function handleCloseWindow() {
 .shell__header h2 {
   margin: 0 0 0;
   padding-left: 8px;
-  font-family: "STKaiti", "KaiTi", "Kaiti SC", "Songti SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei", serif;
-  font-size: 1.68rem;
-  font-weight: 700;
+  font-size: 1.34rem;
+  font-weight: 800;
   line-height: 1.06;
-  letter-spacing: -0.02em;
-  color: #5f6f65;
+  letter-spacing: 0;
+  color: var(--color-text);
 }
 
 .status-card {
@@ -836,10 +818,10 @@ async function handleCloseWindow() {
   min-width: 0;
   margin-right: 14px;
   padding: 10px 14px;
-  background: rgba(255, 250, 242, 0.82);
-  border: 1px solid rgba(57, 87, 63, 0.12);
-  border-radius: 16px;
-  box-shadow: 0 12px 28px rgba(30, 44, 37, 0.08);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-raised);
 }
 
 .status-card__message {
@@ -896,10 +878,10 @@ async function handleCloseWindow() {
 .module-loading__hero,
 .module-loading__card {
   padding: 22px;
-  border-radius: 24px;
-  background: rgba(255, 252, 246, 0.92);
-  border: 1px solid rgba(57, 87, 63, 0.12);
-  box-shadow: 0 16px 40px rgba(30, 44, 37, 0.08);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-panel);
 }
 
 .module-loading__hero {

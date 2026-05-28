@@ -15,13 +15,31 @@ const form = reactive({
   nickname: ""
 });
 
-const submitText = computed(() => (mode.value === "login" ? "登录" : "注册并进入"));
-const modeTitle = computed(() => (mode.value === "login" ? "欢迎回来" : "创建你的账号"));
-const modeDescription = computed(() =>
-  mode.value === "login"
-    ? "输入账号和密码，继续进入你的桌面健康工作台。"
-    : "补充账号、邮箱和密码，马上开始使用 LightBalance。"
-);
+const COPY = {
+  login: {
+    eyebrow: "Welcome Back",
+    title: "欢迎回来",
+    description: "继续进入你的健康工作台。",
+    submit: "登录并进入",
+    switchText: "还没有账号？",
+    switchAction: "去注册"
+  },
+  register: {
+    eyebrow: "Create Account",
+    title: "创建账号",
+    description: "建立你的专属健康档案。",
+    submit: "注册并进入",
+    switchText: "已经有账号了？",
+    switchAction: "去登录"
+  }
+} as const;
+
+const currentCopy = computed(() => COPY[mode.value]);
+
+function switchMode(nextMode: "login" | "register") {
+  mode.value = nextMode;
+  errorMessage.value = "";
+}
 
 async function handleSubmit() {
   errorMessage.value = "";
@@ -35,12 +53,12 @@ async function handleSubmit() {
     }
 
     if (!window.lightBalanceBridge?.notifyAuthSuccess) {
-      throw new Error("桌面窗口桥接未连接，请重启应用后重试");
+      throw new Error("桌面窗口桥接未连接，请重启应用后再试。");
     }
 
     await window.lightBalanceBridge.notifyAuthSuccess();
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : "提交失败，请稍后重试";
+    errorMessage.value = error instanceof Error ? error.message : "提交失败，请稍后重试。";
   } finally {
     submitting.value = false;
   }
@@ -52,40 +70,36 @@ async function handleSubmit() {
     <div class="auth-drag" aria-hidden="true"></div>
 
     <section class="auth-shell">
-      <aside class="auth-brand">
-        <div class="auth-brand__content">
-          <p class="auth-brand__eyebrow">LightBalance</p>
-          <h1>轻享健康</h1>
-          <p class="auth-brand__copy">把评估、饮食、训练、追踪和提醒整合到一个更顺手的桌面工作台里。</p>
+      <aside class="auth-hero">
+        <div class="auth-hero__panel">
+          <p class="auth-hero__eyebrow">LightBalance</p>
 
-          <div class="auth-brand__chips">
-            <span>评估建档</span>
-            <span>训练计划</span>
-            <span>数据追踪</span>
+          <div class="auth-hero__mark">
+            <span>LB</span>
           </div>
-        </div>
 
-        <div class="auth-brand__panel">
-          <strong>测试账号</strong>
-          <p>账号：admin</p>
-          <p>密码：123456</p>
+          <h1>轻享健康</h1>
+          <p class="auth-hero__lead">把身体画像、饮食记录、训练安排与趋势追踪，安静地收进同一处。</p>
+
+          <div class="auth-hero__line"></div>
+          <p class="auth-hero__note">科学减重健康平台</p>
         </div>
       </aside>
 
       <main class="auth-panel">
-        <div class="auth-panel__box">
-          <header class="auth-panel__header">
-            <p class="auth-panel__eyebrow">{{ mode === "login" ? "登录" : "注册" }}</p>
-            <h2>{{ modeTitle }}</h2>
-            <p>{{ modeDescription }}</p>
+        <div class="auth-card">
+          <header class="auth-card__header">
+            <p class="auth-card__eyebrow">{{ currentCopy.eyebrow }}</p>
+            <h2>{{ currentCopy.title }}</h2>
+            <p>{{ currentCopy.description }}</p>
           </header>
 
-          <div class="auth-tabs">
+          <div class="auth-tabs" role="tablist" aria-label="登录注册切换">
             <button
               class="auth-tabs__item"
               :class="{ 'auth-tabs__item--active': mode === 'login' }"
               type="button"
-              @click="mode = 'login'"
+              @click="switchMode('login')"
             >
               登录
             </button>
@@ -93,7 +107,7 @@ async function handleSubmit() {
               class="auth-tabs__item"
               :class="{ 'auth-tabs__item--active': mode === 'register' }"
               type="button"
-              @click="mode = 'register'"
+              @click="switchMode('register')"
             >
               注册
             </button>
@@ -101,22 +115,39 @@ async function handleSubmit() {
 
           <form class="auth-form" @submit.prevent="handleSubmit">
             <label class="auth-field">
-              <span>账号</span>
-              <input v-model.trim="form.username" type="text" autocomplete="username" placeholder="请输入账号" />
+              <span class="auth-field__label">账号</span>
+              <input
+                v-model.trim="form.username"
+                type="text"
+                autocomplete="username"
+                placeholder="请输入账号"
+              />
             </label>
 
-            <label v-if="mode === 'register'" class="auth-field">
-              <span>邮箱</span>
-              <input v-model.trim="form.email" type="email" autocomplete="email" placeholder="请输入邮箱" />
-            </label>
+            <div v-if="mode === 'register'" class="auth-form__row">
+              <label class="auth-field">
+                <span class="auth-field__label">邮箱</span>
+                <input
+                  v-model.trim="form.email"
+                  type="email"
+                  autocomplete="email"
+                  placeholder="name@example.com"
+                />
+              </label>
 
-            <label v-if="mode === 'register'" class="auth-field">
-              <span>昵称</span>
-              <input v-model.trim="form.nickname" type="text" autocomplete="nickname" placeholder="请输入昵称，可选" />
-            </label>
+              <label class="auth-field">
+                <span class="auth-field__label">昵称</span>
+                <input
+                  v-model.trim="form.nickname"
+                  type="text"
+                  autocomplete="nickname"
+                  placeholder="请输入昵称"
+                />
+              </label>
+            </div>
 
             <label class="auth-field">
-              <span>密码</span>
+              <span class="auth-field__label">密码</span>
               <input
                 v-model="form.password"
                 type="password"
@@ -125,15 +156,22 @@ async function handleSubmit() {
               />
             </label>
 
-            <div class="auth-meta">
-              <span>{{ mode === "login" ? "登录将直接校验 MySQL 用户数据" : "注册成功后会立即写入数据库并进入主界面" }}</span>
-            </div>
-
             <p v-if="errorMessage" class="auth-error">{{ errorMessage }}</p>
 
             <button class="auth-submit" type="submit" :disabled="submitting">
-              {{ submitting ? "请稍候..." : submitText }}
+              {{ submitting ? "请稍候..." : currentCopy.submit }}
             </button>
+
+            <p class="auth-switch">
+              <span>{{ currentCopy.switchText }}</span>
+              <button
+                class="auth-switch__button"
+                type="button"
+                @click="switchMode(mode === 'login' ? 'register' : 'login')"
+              >
+                {{ currentCopy.switchAction }}
+              </button>
+            </p>
           </form>
         </div>
       </main>
@@ -143,172 +181,203 @@ async function handleSubmit() {
 
 <style scoped>
 .auth-screen {
+  --auth-ink: #223127;
+  --auth-ink-soft: #667469;
+  --auth-panel: rgba(255, 251, 244, 0.9);
+  --auth-panel-strong: rgba(255, 253, 249, 0.98);
+  --auth-forest: #294033;
+  --auth-forest-soft: #45624f;
+  --auth-line: rgba(74, 96, 80, 0.14);
+  --auth-shadow: 0 26px 60px rgba(39, 57, 47, 0.14);
+  --auth-serif: "Georgia", "Times New Roman", "Songti SC", "STSong", serif;
+  --auth-sans: "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
   min-height: calc(100vh - 44px);
   display: grid;
-  grid-template-rows: 14px 1fr;
-  background:
-    radial-gradient(circle at top left, rgba(255, 223, 170, 0.22), transparent 22%),
-    linear-gradient(180deg, #f7f3ea, #eff4ed 88%);
+  grid-template-rows: 14px minmax(0, 1fr);
+  position: relative;
   overflow: hidden;
+  font-family: var(--auth-sans);
+  background:
+    radial-gradient(circle at 12% 16%, rgba(233, 211, 171, 0.34), transparent 18%),
+    radial-gradient(circle at 84% 18%, rgba(205, 223, 204, 0.28), transparent 18%),
+    linear-gradient(135deg, #f7f2e8 0%, #eef4ec 52%, #f7f4ee 100%);
+}
+
+.auth-screen::before,
+.auth-screen::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.auth-screen::before {
+  top: 76px;
+  right: -80px;
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(232, 214, 184, 0.42), transparent 72%);
+  animation: authFloat 12s ease-in-out infinite;
+}
+
+.auth-screen::after {
+  bottom: -100px;
+  left: 42%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(205, 224, 206, 0.36), transparent 74%);
+  animation: authFloat 14s ease-in-out infinite reverse;
 }
 
 .auth-drag {
+  height: 14px;
   -webkit-app-region: drag;
   app-region: drag;
 }
 
 .auth-shell {
+  position: relative;
+  z-index: 1;
   display: grid;
-  grid-template-columns: minmax(380px, 1.04fr) minmax(420px, 0.96fr);
+  grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.05fr);
   min-height: 100%;
 }
 
-.auth-brand {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  position: relative;
-  padding: 48px 44px 40px;
-  color: #f8f4ea;
+.auth-hero {
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.auth-hero__panel {
+  width: min(360px, 100%);
+  padding: 34px 30px;
+  border-radius: 34px;
+  color: #f8f4eb;
   background:
-    radial-gradient(circle at top left, rgba(255, 221, 167, 0.4), transparent 28%),
-    linear-gradient(155deg, #1f3128, #2d493d 58%, #486955);
-  overflow: hidden;
+    linear-gradient(155deg, rgba(28, 45, 36, 0.98), rgba(44, 67, 54, 0.96) 60%, rgba(74, 102, 84, 0.92)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
+  box-shadow: 0 28px 60px rgba(31, 48, 39, 0.22);
+  animation: authRise 720ms ease both;
 }
 
-.auth-brand::after {
-  content: "";
-  position: absolute;
-  inset: auto -72px -92px auto;
-  width: 260px;
-  height: 260px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 236, 199, 0.22), transparent 64%);
-}
-
-.auth-brand__content {
-  position: relative;
-  z-index: 1;
-}
-
-.auth-brand__eyebrow {
+.auth-hero__eyebrow {
   margin: 0;
+  color: rgba(248, 233, 201, 0.78);
   font-size: 0.76rem;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: rgba(255, 232, 191, 0.82);
 }
 
-.auth-brand h1 {
-  margin: 24px 0 16px;
-  font-size: 4.3rem;
-  line-height: 0.95;
+.auth-hero__mark {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-top: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(231, 209, 170, 0.34), rgba(255, 255, 255, 0.1));
+  border: 1px solid rgba(244, 227, 193, 0.18);
 }
 
-.auth-brand__copy {
-  max-width: 360px;
+.auth-hero__mark span {
+  color: #fff6e6;
+  font-family: var(--auth-serif);
+  font-size: 1.3rem;
+  letter-spacing: 0.08em;
+}
+
+.auth-hero h1 {
+  margin: 22px 0 12px;
+  color: #fff8ec;
+  font-family: var(--auth-serif);
+  font-size: clamp(2.4rem, 4vw, 3.4rem);
+  line-height: 1.08;
+}
+
+.auth-hero__lead {
   margin: 0;
-  line-height: 1.8;
-  color: rgba(246, 241, 231, 0.84);
+  color: rgba(245, 239, 228, 0.8);
+  line-height: 1.9;
 }
 
-.auth-brand__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 30px;
+.auth-hero__line {
+  width: 56px;
+  height: 1px;
+  margin: 28px 0 16px;
+  background: rgba(244, 227, 193, 0.34);
 }
 
-.auth-brand__chips span {
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(249, 245, 236, 0.9);
-  font-size: 0.84rem;
-  font-weight: 700;
-}
-
-.auth-brand__panel {
-  position: relative;
-  z-index: 1;
-  width: min(320px, 100%);
-  padding: 20px 20px 18px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
-}
-
-.auth-brand__panel strong,
-.auth-brand__panel p {
-  display: block;
-}
-
-.auth-brand__panel strong {
-  margin-bottom: 8px;
-}
-
-.auth-brand__panel p {
+.auth-hero__note {
   margin: 0;
-  color: rgba(246, 241, 231, 0.82);
-  line-height: 1.6;
+  color: rgba(245, 239, 228, 0.68);
+  letter-spacing: 0.12em;
 }
 
 .auth-panel {
   display: grid;
   place-items: center;
   padding: 32px;
-  background: rgba(252, 249, 242, 0.94);
 }
 
-.auth-panel__box {
-  width: min(430px, 100%);
+.auth-card {
+  width: min(440px, 100%);
+  padding: 32px 30px 28px;
+  border-radius: 32px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.4)),
+    var(--auth-panel);
+  border: 1px solid rgba(97, 118, 99, 0.12);
+  box-shadow: var(--auth-shadow);
+  backdrop-filter: blur(14px);
+  animation: authRise 820ms ease 80ms both;
 }
 
-.auth-panel__header {
+.auth-card__header {
   margin-bottom: 22px;
 }
 
-.auth-panel__eyebrow {
-  margin: 0 0 6px;
-  font-size: 0.78rem;
-  letter-spacing: 0.16em;
+.auth-card__eyebrow {
+  margin: 0 0 8px;
+  color: #907249;
+  font-size: 0.76rem;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: #7a867d;
 }
 
-.auth-panel__header h2 {
+.auth-card__header h2 {
   margin: 0;
-  font-size: 2.2rem;
-  color: #223127;
+  color: var(--auth-ink);
+  font-family: var(--auth-serif);
+  font-size: 2rem;
+  line-height: 1.15;
 }
 
-.auth-panel__header p {
+.auth-card__header p {
   margin: 10px 0 0;
-  max-width: 360px;
-  line-height: 1.65;
-  color: #66756b;
+  color: var(--auth-ink-soft);
+  line-height: 1.72;
 }
 
 .auth-tabs {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
-  border-radius: 18px;
-  background: rgba(42, 63, 49, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  border-radius: 20px;
+  background: rgba(54, 77, 62, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .auth-tabs__item {
   padding: 12px 14px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 16px;
   background: transparent;
-  color: #4a5d51;
+  color: #4c5f53;
   font-weight: 700;
   cursor: pointer;
-  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+  transition: transform 180ms ease, background 180ms ease, color 180ms ease, box-shadow 180ms ease;
 }
 
 .auth-tabs__item:hover {
@@ -316,15 +385,21 @@ async function handleSubmit() {
 }
 
 .auth-tabs__item--active {
-  background: linear-gradient(135deg, #294033, #3f5f4b);
-  color: #f8f4ea;
-  box-shadow: 0 10px 24px rgba(35, 54, 43, 0.16);
+  color: #fff8ee;
+  background: linear-gradient(135deg, #2a3f33, #4a6754);
+  box-shadow: 0 12px 24px rgba(39, 59, 47, 0.18);
 }
 
 .auth-form {
   display: grid;
-  gap: 16px;
-  margin-top: 24px;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.auth-form__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .auth-field {
@@ -332,62 +407,62 @@ async function handleSubmit() {
   gap: 8px;
 }
 
-.auth-field span {
-  color: #506156;
-  font-size: 0.92rem;
-  font-weight: 600;
+.auth-field__label {
+  color: #4e6156;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .auth-field input {
-  padding: 16px 18px;
+  width: 100%;
+  padding: 15px 16px;
   border-radius: 18px;
-  border: 1px solid rgba(61, 84, 67, 0.14);
-  background: rgba(255, 255, 255, 0.96);
-  color: #223127;
+  border: 1px solid var(--auth-line);
+  background: var(--auth-panel-strong);
+  color: var(--auth-ink);
   outline: none;
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .auth-field input::placeholder {
-  color: #9aa69d;
+  color: #9ca79d;
 }
 
 .auth-field input:focus {
-  border-color: rgba(57, 98, 68, 0.36);
-  box-shadow: 0 0 0 4px rgba(98, 141, 108, 0.12);
+  border-color: rgba(72, 109, 80, 0.34);
+  box-shadow: 0 0 0 4px rgba(129, 166, 133, 0.12);
   transform: translateY(-1px);
-}
-
-.auth-meta {
-  color: #718177;
-  font-size: 0.86rem;
 }
 
 .auth-error {
   margin: 0;
   padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(193, 63, 45, 0.08);
-  color: #b43b2d;
-  font-size: 0.92rem;
+  border-radius: 16px;
+  background: rgba(196, 70, 53, 0.08);
+  border: 1px solid rgba(196, 70, 53, 0.12);
+  color: #b34739;
+  line-height: 1.6;
 }
 
 .auth-submit {
   margin-top: 4px;
-  padding: 16px 18px;
+  padding: 15px 18px;
   border: 0;
   border-radius: 18px;
-  background: linear-gradient(135deg, #22342a, #42604b);
-  color: #fffaf0;
+  color: #fff9ef;
   font-weight: 700;
+  letter-spacing: 0.04em;
   cursor: pointer;
-  box-shadow: 0 14px 28px rgba(39, 64, 49, 0.18);
+  background:
+    linear-gradient(135deg, rgba(214, 183, 132, 0.32), rgba(255, 255, 255, 0.04)),
+    linear-gradient(135deg, #273b30, #486654);
+  box-shadow: 0 16px 30px rgba(39, 60, 47, 0.18);
   transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
 }
 
 .auth-submit:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 18px 34px rgba(39, 64, 49, 0.22);
+  box-shadow: 0 20px 34px rgba(39, 60, 47, 0.22);
 }
 
 .auth-submit:disabled {
@@ -396,26 +471,76 @@ async function handleSubmit() {
   box-shadow: none;
 }
 
-@media (max-width: 820px) {
+.auth-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  color: var(--auth-ink-soft);
+  font-size: 0.9rem;
+}
+
+.auth-switch__button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--auth-forest-soft);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-switch__button:hover {
+  color: var(--auth-forest);
+}
+
+@keyframes authRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes authFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -14px, 0);
+  }
+}
+
+@media (max-width: 920px) {
   .auth-shell {
     grid-template-columns: 1fr;
   }
 
-  .auth-brand {
-    gap: 24px;
-    padding: 28px 24px 24px;
-  }
-
-  .auth-brand h1 {
-    font-size: 3rem;
-  }
-
+  .auth-hero,
   .auth-panel {
-    padding: 24px 22px 22px;
+    padding: 24px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-card,
+  .auth-hero__panel {
+    padding: 24px 20px;
+    border-radius: 26px;
   }
 
-  .auth-panel__box {
-    width: 100%;
+  .auth-form__row {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-hero h1 {
+    font-size: 2.3rem;
   }
 }
 </style>

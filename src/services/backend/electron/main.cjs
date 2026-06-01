@@ -20,7 +20,7 @@ const MAIN_WINDOW = {
 };
 const projectRoot = node_path_1.default.resolve(__dirname, "..", "..", "..", "..");
 const rendererUrl = process.env.ELECTRON_RENDERER_URL;
-const distIndexPath = node_path_1.default.join(projectRoot, "dist", "index.html");
+const distIndexPath = node_path_1.default.join(projectRoot, "src", "dist", "index.html");
 const preloadPath = node_path_1.default.join(__dirname, "preload.cjs");
 let authWindow = null;
 let mainWindow = null;

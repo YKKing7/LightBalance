@@ -2,6 +2,7 @@ import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
 export default defineConfig({
     root: "src",
+    base: "./",
     plugins: [vue()],
     server: {
         host: '127.0.0.1', // 强制 Vite 监听 IPv4 地址，解决与 Electron 的连接问题

@@ -133,14 +133,33 @@ async function ensureTodayDailyLog(connection, userId, logDate, waterTargetMl) {
         if (!existing[0]) break;
         nextDailyId++;
     }
-    await connection.execute(`INSERT INTO diet_daily_log
-      (daily_id, user_id, log_date, water_intake_ml, water_target_ml, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`, [nextDailyId, userId, logDate, 0, waterTargetMl, now, now]);
-    return {
-        daily_id: nextDailyId,
-        water_intake_ml: 0,
-        water_target_ml: waterTargetMl
-    };
+    for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+            await connection.execute(`INSERT INTO diet_daily_log
+        (daily_id, user_id, log_date, water_intake_ml, water_target_ml, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`, [nextDailyId, userId, logDate, 0, waterTargetMl, now, now]);
+            return {
+                daily_id: nextDailyId,
+                water_intake_ml: 0,
+                water_target_ml: waterTargetMl
+            };
+        }
+        catch (error) {
+            if (error?.code !== "ER_DUP_ENTRY") {
+                throw error;
+            }
+            const [existingRows] = await connection.execute("SELECT daily_id, water_intake_ml, water_target_ml FROM diet_daily_log WHERE user_id = ? AND log_date = ? LIMIT 1", [userId, logDate]);
+            if (existingRows[0]) {
+                if (Number(existingRows[0].water_target_ml) !== waterTargetMl) {
+                    await connection.execute("UPDATE diet_daily_log SET water_target_ml = ?, updated_at = ? WHERE daily_id = ?", [waterTargetMl, new Date(), Number(existingRows[0].daily_id)]);
+                    existingRows[0].water_target_ml = waterTargetMl;
+                }
+                return existingRows[0];
+            }
+            nextDailyId++;
+        }
+    }
+    throw new Error("Unable to create today's diet daily log");
 }
 async function ensureSeedMeals(connection, userId, logDate, calorieTarget) {
     const [rows] = await connection.execute("SELECT COUNT(*) AS total FROM diet_meal_entry WHERE user_id = ? AND log_date = ?", [userId, logDate]);
